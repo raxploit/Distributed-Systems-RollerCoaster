@@ -30,6 +30,11 @@ public class StationHandler implements Station.Iface {
     // Nur fuer die Demo: Fairness sichtbar machen
     private final Map<Integer, Integer> rideCount = new TreeMap<>();
 
+    // Zaehler fuer die Metrik-Ausgabe (keine Aenderung an der Thrift-IDL noetig)
+    private long boardings;
+    private long departures;
+    private long completedRides;
+
     public StationHandler(int capacity) {
         this.capacity = capacity;
     }
@@ -51,6 +56,7 @@ public class StationHandler implements Station.Iface {
         seats.get(wagonId).add(passengerId);
         passengerWagon.put(passengerId, wagonId);
         log("P" + passengerId + " steigt in W" + wagonId + " ein " + seats.get(wagonId));
+        boardings++;
 
         notifyAll(); // naechster Passagier oder volle-Wagen-Bedingung pruefen
         return wagonId;
@@ -93,6 +99,7 @@ public class StationHandler implements Station.Iface {
         platformQueue.pollFirst();   // Bahnsteig frei fuer den naechsten Wagen
         track.addLast(wagonId);      // Abfahrtsreihenfolge merken
         log("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
+        departures++;
         notifyAll(); // naechster Wagen darf jetzt beladen werden
     }
 
@@ -114,8 +121,19 @@ public class StationHandler implements Station.Iface {
 
         rideOver.remove(wagonId);
         track.pollFirst();
+        completedRides++;
         log("W" + wagonId + " leer");
         notifyAll(); // naechster Wagen auf der Strecke darf entladen
+    }
+
+    // ---------------- Metriken ----------------
+
+    /** Snapshot fuer die periodische Ausgabe; synchronized wie alle anderen Methoden. */
+    public synchronized String stats() {
+        return String.format(
+                "[METRIC] c=%d waiting=%d platform=%d track=%d boardings=%d departures=%d rides=%d",
+                capacity, waitingPassengers.size(), platformQueue.size(), track.size(),
+                boardings, departures, completedRides);
     }
 
     // ---------------- Hilfsmethoden ----------------

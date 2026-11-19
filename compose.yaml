@@ -1,0 +1,16 @@
+# VM-Seite: Die Station läuft normalerweise auf dem Laptop; ihre Tailnet-IP
+# steht in .env. Die Client-Services erzeugt docker/generate-compose.sh in
+# compose.clients.yaml (ein Container pro Client, feste ID).
+#
+# Für lokale Tests (Station + Clients in einem Set):
+#   in .env: STATION_HOST=station
+#   docker compose -f compose.yaml -f compose.clients.yaml --profile local up -d
+
+services:
+  station:
+    profiles: [local]
+    build: .
+    image: rollercoaster:local
+    command: ["java", "-cp", "build:lib/*", "rollerCoaster.StationServer", "${CAPACITY:-4}"]
+    ports: ["127.0.0.1:${STATION_PORT:-9090}:9090"]
+    init: true

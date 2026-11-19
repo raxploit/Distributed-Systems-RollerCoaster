@@ -82,15 +82,24 @@ src/python/               Python-Code (wagon_client.py)
 gen-java/, gen-py/        von Thrift generierter Code (nicht von Hand bearbeiten)
 build/                    kompilierte Java-Klassen
 lib/                      Java-Abhängigkeiten (libthrift, slf4j)
-logs/                     Logs der Wagen und Passagiere
-Start*.sh / Start*.cmd    Startskripte für Linux/WSL bzw. Windows (.cmd ruft .ps1 auf)
+logs/                     Logs der Wagen und Passagiere (nur nativer Betrieb)
+Start*.sh                 Startskripte für den nativen Betrieb unter Arch Linux
+Dockerfile, compose.yaml  Container-Build und VM-Seite (dort nur Clients)
+docker/                   Generator und Warte-Skript für die Client-Container
+compose.clients.yaml      generierte Client-Services (nicht eingecheckt)
+.env.example, Makefile    Konfiguration und Kommandos für den verteilten Betrieb
 ```
 
-## Voraussetzungen
+## Voraussetzungen (Arch Linux)
 
-- Java 21 (JDK)
-- Python 3 mit venv
-- Apache Thrift Compiler 0.22.0
+- `jdk21-openjdk` – Java 21 (JDK zum Kompilieren und Starten der Station)
+- `python` – Python 3 (mit `venv` für das native Setup; im Docker-Image kommt es automatisch mit)
+- `thrift` – nur nötig, wenn `rollerCoaster.thrift` geändert wird (generierter Code liegt im Repo)
+
+```shell
+sudo pacman -S jdk21-openjdk python
+# optional, nur bei IDL-Änderungen: sudo pacman -S thrift
+```
 
 ## Setup
 
@@ -141,66 +150,77 @@ pkill -f rollerCoaster.PassengerClient; pkill -f wagon_client.py
 rm -f logs/*.log
 ```
 
-## Windows (nativ, ohne WSL)
+## Verteilter Betrieb mit Docker (Station auf Laptop, Clients in der VM)
 
-WSL2 hängt standardmäßig hinter einem eigenen virtuellen Netzwerk (NAT), daher ist eine Station in WSL von anderen Rechnern aus nicht erreichbar. Nativ unter Windows besteht dieses Problem nicht. Der Code bleibt gleich; der generierte Thrift-Code liegt im Repo, der Thrift-Compiler wird also nicht benötigt.
+Für die Präsentation läuft die Station auf dem Laptop, alle Wagen und Passagiere
+als **jeweils eigener Container** in der VM. Beide Maschinen sind im selben
+Tailnet; die Clients verbinden sich direkt über die Tailnet-IP des Laptops.
 
 ### Voraussetzungen
-```powershell
-winget install EclipseAdoptium.Temurin.21.JDK
-winget install Python.Python.3.12
-```
-Das Repo unter Windows klonen (z. B. nach `C:\...`, nicht ins WSL-Dateisystem).
 
-### Setup (PowerShell, im Projektordner)
-```powershell
-# Python-Umgebung
-py -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
+- Laptop: `jdk21-openjdk`, Tailscale, Port 9090 erreichbar
+- VM: `docker`, `docker-compose` (Compose v2), `make`, Tailscale, optional `netcat` für den Reichbarkeitscheck
+- Kein Thrift-Compiler nötig (generierter Code liegt im Repo)
 
-# Java kompilieren (unter Windows ';' statt ':' im Classpath)
-javac -cp "lib\*" -d build src\rollerCoaster\*.java gen-java\rollerCoaster\*.java
+```shell
+# auf der VM
+sudo pacman -S docker docker-compose make netcat
+sudo systemctl enable --now docker.service
+sudo usermod -aG docker "$USER"   # danach neu anmelden
 ```
 
-### Starten
-```powershell
-# Terminal 1 – Station
-java -cp "build;lib\*" rollerCoaster.StationServer 4
+### Konfiguration
 
-# Terminal 2 – Wagen
-.\StartWagons.cmd localhost 4
-
-# Terminal 3 – Passagiere
-.\StartPassengers.cmd localhost 10
-
-# Live-Logs
-Get-Content logs\*.log -Wait
-```
-Nutzung: `.\StartWagons.cmd <stationHost> <anzahl> [fahrzeitMs]` bzw. `.\StartPassengers.cmd <stationHost> <anzahl>`
-
-Die `.cmd`-Dateien rufen die gleichnamigen `.ps1`-Skripte mit `-ExecutionPolicy Bypass` auf. So gibt es keinen Fehler „Ausführung von Skripts auf diesem System deaktiviert“. Wer die `.ps1` direkt starten will, muss einmalig die Execution Policy lockern (bei heruntergeladenen Dateien zusätzlich `Unblock-File`):
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-Get-ChildItem *.ps1 | Unblock-File
+```shell
+cp .env.example .env
+# STATION_HOST = Tailnet-IP des Laptops (100.x.y.z)
+# WAGONS / PASSENGERS = Anzahl der Client-Container
+# ID_OFFSET = Offset, falls mehrere VMs laufen
 ```
 
-### Verteilt über mehrere Rechner
-- IP des Station-Rechners mit `ipconfig` ermitteln; die anderen starten ihre Skripte mit dieser IP statt `localhost`.
-- **Windows-Firewall:** Beim ersten Start der Station Java den Zugriff für „Private Netzwerke“ erlauben, oder als Admin:
-  ```powershell
-  New-NetFirewallRule -DisplayName "RollerCoaster 9090" -Direction Inbound -Protocol TCP -LocalPort 9090 -Action Allow
-  ```
-- Das Netzwerkprofil in Windows muss „Privat“ sein, nicht „Öffentlich“.
+Erreichbarkeit vorab prüfen (in der VM): `nc -vz <tailnet-ip-des-laptops> 9090`.
 
-### Aufräumen
-```powershell
-Get-CimInstance Win32_Process | ? { $_.CommandLine -like '*PassengerClient*' -or $_.CommandLine -like '*wagon_client.py*' } | % { Stop-Process -Id $_.ProcessId }
-Remove-Item logs\*.log
+### Starten und Stoppen
+
+```shell
+make up          # generiert compose.clients.yaml und startet alle Clients
+make ps          # ein Container pro Client
+make logs        # alle Logs (oder: docker compose logs -f wagon-2)
+make down        # alle Client-Container stoppen und entfernen
 ```
 
-### Alternative: in WSL bleiben
-In `%USERPROFILE%\.wslconfig` eintragen und danach `wsl --shutdown` ausführen. WSL teilt dann die Netzwerkadressen mit Windows (die Firewall-Regel von oben wird trotzdem benötigt):
-```ini
-[wsl2]
-networkingMode=mirrored
+`docker/generate-compose.sh` erzeugt `compose.clients.yaml` mit expliziten Services
+`wagon-1 … wagon-n` und `passenger-1 … passenger-m`. Der Generator läuft bei
+`make up` und `make down` automatisch. `--scale` wird bewusst nicht verwendet:
+dabei bekämen alle Replikate dieselbe Client-ID.
+
+Jeder Container wartet beim Start per `docker/wait-for-station.sh` auf die Station;
+`restart: on-failure` fängt Verbindungsabbrüche ab. Die Client-Logs laufen nach
+stdout statt in `logs/`. Die bisherigen Startskripte und Datei-Logs bleiben für
+den nativen Betrieb unverändert.
+
+### Metriken und Demo
+
+Die Station gibt alle 10 Sekunden einen Snapshot aus, z. B.
+
 ```
+[METRIC] c=4 waiting=3 platform=1 track=2 boardings=28 departures=7 rides=7
+```
+
+Die Wagen-Container loggen zusätzlich ihre Fahrten (`[W2] … Fahrten: 5`), die
+Passagiere zählen bereits seit jeher. Damit lassen sich in der Demo gut zeigen:
+FIFO-Warteschlange, blockierende RPCs, volle Wagen und das Verhindern von
+Überholen auf der Strecke.
+
+Nach den Metrik-Änderungen muss die Station auf dem Laptop neu kompiliert werden
+(`javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java`,
+siehe Setup).
+
+### Alles lokal in einem Container-Set (optional)
+
+```shell
+# in .env: STATION_HOST=station
+docker compose -f compose.yaml -f compose.clients.yaml --profile local up -d
+docker compose -f compose.yaml -f compose.clients.yaml --profile local down
+```
+

@@ -20,6 +20,7 @@ def main():
     station = Station.Client(protocol)
     transport.open()
 
+    rides = 0
     try:
         while True:
             print(f"[W{wagon_id}] fahre in den Bahnsteig ein")
@@ -31,7 +32,8 @@ def main():
             time.sleep(ride_time / 1000)  # die eigentliche Fahrt
 
             station.ride_finished(wagon_id)  # blockiert, bis alle ausgestiegen sind
-            print(f"[W{wagon_id}] leer, zurueck zum Bahnsteig")
+            rides += 1
+            print(f"[W{wagon_id}] leer, zurueck zum Bahnsteig | Fahrten: {rides}")
     finally:
         transport.close()
 
