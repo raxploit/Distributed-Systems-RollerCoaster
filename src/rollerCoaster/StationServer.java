@@ -15,6 +15,7 @@ public class StationServer {
         int width = 96;
         Path logPath = Path.of("logs", "station.log");
         boolean dashboard = true;
+        boolean colorFlag = true;
 
         for (String arg : args) {
             if (arg.startsWith("--log=")) {
@@ -25,8 +26,10 @@ public class StationServer {
                 dashboard = true;
             } else if (arg.startsWith("--width=")) {
                 width = Integer.parseInt(arg.substring("--width=".length()));
-            } else if (arg.equals("--no-color") || arg.equals("--color")) {
-                // Farben kommen in Phase 2; die Flags werden schon akzeptiert.
+            } else if (arg.equals("--no-color")) {
+                colorFlag = false;
+            } else if (arg.equals("--color")) {
+                colorFlag = true;
             } else if (arg.matches("\\d+")) {
                 capacity = Integer.parseInt(arg);
             } else {
@@ -38,9 +41,11 @@ public class StationServer {
         // Ohne echtes Terminal (Redirect, docker logs) wären Escape-Codes unsinnig.
         boolean tty = System.console() != null && !"dumb".equals(System.getenv("TERM"));
         boolean interactive = dashboard && tty;
+        boolean noColorEnv = System.getenv("NO_COLOR") != null;
+        boolean colors = colorFlag && !noColorEnv;
 
         StationLog log = new StationLog(logPath, !interactive);
-        ConsoleView view = new ConsoleView(width, interactive);
+        ConsoleView view = new ConsoleView(width, interactive, colors);
         Runtime.getRuntime().addShutdownHook(new Thread(log::close, "station-log-close"));
 
         StationHandler handler = new StationHandler(capacity, log);     // EINE Instanz fuer alle Clients

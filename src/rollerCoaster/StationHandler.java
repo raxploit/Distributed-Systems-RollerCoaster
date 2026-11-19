@@ -31,6 +31,11 @@ public class StationHandler implements Station.Iface {
     // Nur fuer die Demo: Fairness sichtbar machen
     private final Map<Integer, Integer> rideCount = new TreeMap<>();
 
+    // Letzte Ereignisse fuer den Dashboard-Ticker
+    private final Deque<String> recentEvents = new ArrayDeque<>();
+    private long eventSeq;
+    private static final int RECENT_EVENTS = 5;
+
     // Zaehler fuer die Metrik-Ausgabe (keine Aenderung an der Thrift-IDL noetig)
     private long boardings;
     private long departures;
@@ -47,6 +52,7 @@ public class StationHandler implements Station.Iface {
     public synchronized int i_am_boarding(int passengerId) throws TException {
         waitingPassengers.addLast(passengerId);
         log.station("P" + passengerId + " wartet  | Queue: " + waitingPassengers);
+        recordEvent("P" + passengerId + " wartet");
 
         // Warten, bis: ein Wagen beladen wird, er noch Platz hat UND ich vorne in der Schlange bin
         while (!(isLoadingWagonFree() && Integer.valueOf(passengerId).equals(waitingPassengers.peekFirst()))) {
@@ -59,6 +65,7 @@ public class StationHandler implements Station.Iface {
         passengerWagon.put(passengerId, wagonId);
         log.station("P" + passengerId + " steigt in W" + wagonId + " ein " + seats.get(wagonId));
         boardings++;
+        recordEvent("P" + passengerId + " → W" + wagonId + " (" + seats.get(wagonId).size() + "/" + capacity + ")");
 
         notifyAll(); // naechster Passagier oder volle-Wagen-Bedingung pruefen
         return wagonId;
@@ -76,8 +83,9 @@ public class StationHandler implements Station.Iface {
     public synchronized void i_am_disembarking(int passengerId) throws TException {
         int wagonId = passengerWagon.remove(passengerId);
         seats.get(wagonId).remove(Integer.valueOf(passengerId));
-        rideCount.merge(passengerId, 1, Integer::sum);
+        int rides = rideCount.merge(passengerId, 1, Integer::sum);
         log.station("P" + passengerId + " steigt aus W" + wagonId + " aus | Fahrten: " + rideCount);
+        recordEvent("P" + passengerId + " ← W" + wagonId + " (Fahrt " + rides + ")");
         notifyAll(); // Wagen wartet evtl. darauf, leer zu sein
     }
 
@@ -88,6 +96,7 @@ public class StationHandler implements Station.Iface {
         seats.put(wagonId, new ArrayList<>());
         platformQueue.addLast(wagonId);
         log.station("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
+        recordEvent("W" + wagonId + " am Bahnsteig");
         notifyAll(); // wartende Passagiere koennen evtl. einsteigen
 
         // Warten, bis ich vorne am Bahnsteig bin UND voll
@@ -102,6 +111,7 @@ public class StationHandler implements Station.Iface {
         track.addLast(wagonId);      // Abfahrtsreihenfolge merken
         log.station("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
         departures++;
+        recordEvent("W" + wagonId + " Abfahrt " + seats.get(wagonId));
         notifyAll(); // naechster Wagen darf jetzt beladen werden
     }
 
@@ -114,6 +124,7 @@ public class StationHandler implements Station.Iface {
 
         rideOver.add(wagonId);
         log.station("W" + wagonId + " zurueck, Passagiere steigen aus");
+        recordEvent("W" + wagonId + " zurück");
         notifyAll(); // weckt die Passagiere in wait_for_ride_end
 
         // Warten, bis alle c Passagiere ausgestiegen sind
@@ -125,6 +136,7 @@ public class StationHandler implements Station.Iface {
         track.pollFirst();
         completedRides++;
         log.station("W" + wagonId + " leer");
+        recordEvent("W" + wagonId + " leer");
         notifyAll(); // naechster Wagen auf der Strecke darf entladen
     }
 
@@ -145,6 +157,7 @@ public class StationHandler implements Station.Iface {
                          List<Integer> track,
                          Map<Integer, List<Integer>> seats,
                          Map<Integer, Integer> rideCount,
+                         List<String> recentEvents,
                          long boardings,
                          long departures,
                          long completedRides) {}
@@ -159,7 +172,16 @@ public class StationHandler implements Station.Iface {
                 List.copyOf(track),
                 Collections.unmodifiableMap(seatsCopy),
                 Collections.unmodifiableMap(new TreeMap<>(rideCount)),
+                List.copyOf(recentEvents),
                 boardings, departures, completedRides);
+    }
+
+    private void recordEvent(String shortText) {
+        eventSeq++;
+        recentEvents.addLast(String.format(Locale.ROOT, "#%04d %s", eventSeq, shortText));
+        while (recentEvents.size() > RECENT_EVENTS) {
+            recentEvents.pollFirst();
+        }
     }
 
     // ---------------- Hilfsmethoden ----------------

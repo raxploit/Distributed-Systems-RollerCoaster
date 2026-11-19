@@ -41,14 +41,16 @@ java -cp "build:lib/*" rollerCoaster.StationServer 4
 ```
 
 Im Terminal läuft ein Live-Dashboard (4 Hz) mit Warteschlange, Bahnsteig,
-Strecke und Zählern. Die `[Station]`- und `[METRIC]`-Zeilen stehen jetzt in
-`logs/station.log`:
+Strecke, Sitzplätzen, Zählern, Fahrten pro Passagier und den letzten fünf
+Ereignissen. Farben gibt es automatisch im echten Terminal. Die `[Station]`-
+und `[METRIC]`-Zeilen stehen jetzt in `logs/station.log`:
 
 ```shell
 tail -f logs/station.log
 ```
 
-Optionen: `--log=pfad`, `--width=N` (Default 96), `--no-dashboard`.
+Optionen: `--log=pfad`, `--width=N` (Default 96), `--no-dashboard`,
+`--no-color` (geht auch über die Umgebungsvariable `NO_COLOR`).
 Ohne TTY oder mit `--no-dashboard` gehen die Log-Zeilen direkt auf stdout.
 
 ## Container starten (VM)
