@@ -40,7 +40,16 @@ In `.env`: `STATION_HOST` = Tailnet-IP des Laptops (Port 9090), `WAGONS`,
 java -cp "build:lib/*" rollerCoaster.StationServer 4
 ```
 
-Alle 10 Sekunden erscheint ein `[METRIC]`-Snapshot.
+Im Terminal läuft ein Live-Dashboard (4 Hz) mit Warteschlange, Bahnsteig,
+Strecke und Zählern. Die `[Station]`- und `[METRIC]`-Zeilen stehen jetzt in
+`logs/station.log`:
+
+```shell
+tail -f logs/station.log
+```
+
+Optionen: `--log=pfad`, `--width=N` (Default 96), `--no-dashboard`.
+Ohne TTY oder mit `--no-dashboard` gehen die Log-Zeilen direkt auf stdout.
 
 ## Container starten (VM)
 

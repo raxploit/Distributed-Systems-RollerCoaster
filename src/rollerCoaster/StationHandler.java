@@ -10,6 +10,7 @@ import java.util.*;
 public class StationHandler implements Station.Iface {
 
     private final int capacity; // c
+    private final StationLog log;
 
     // Passagiere, die auf eine Fahrt warten (FIFO -> keine Starvation, faire Reihenfolge)
     private final Deque<Integer> waitingPassengers = new ArrayDeque<>();
@@ -35,8 +36,9 @@ public class StationHandler implements Station.Iface {
     private long departures;
     private long completedRides;
 
-    public StationHandler(int capacity) {
+    public StationHandler(int capacity, StationLog log) {
         this.capacity = capacity;
+        this.log = log;
     }
 
     // ---------------- Passagiere ----------------
@@ -44,7 +46,7 @@ public class StationHandler implements Station.Iface {
     @Override
     public synchronized int i_am_boarding(int passengerId) throws TException {
         waitingPassengers.addLast(passengerId);
-        log("P" + passengerId + " wartet  | Queue: " + waitingPassengers);
+        log.station("P" + passengerId + " wartet  | Queue: " + waitingPassengers);
 
         // Warten, bis: ein Wagen beladen wird, er noch Platz hat UND ich vorne in der Schlange bin
         while (!(isLoadingWagonFree() && Integer.valueOf(passengerId).equals(waitingPassengers.peekFirst()))) {
@@ -55,7 +57,7 @@ public class StationHandler implements Station.Iface {
         int wagonId = platformQueue.peekFirst();
         seats.get(wagonId).add(passengerId);
         passengerWagon.put(passengerId, wagonId);
-        log("P" + passengerId + " steigt in W" + wagonId + " ein " + seats.get(wagonId));
+        log.station("P" + passengerId + " steigt in W" + wagonId + " ein " + seats.get(wagonId));
         boardings++;
 
         notifyAll(); // naechster Passagier oder volle-Wagen-Bedingung pruefen
@@ -75,7 +77,7 @@ public class StationHandler implements Station.Iface {
         int wagonId = passengerWagon.remove(passengerId);
         seats.get(wagonId).remove(Integer.valueOf(passengerId));
         rideCount.merge(passengerId, 1, Integer::sum);
-        log("P" + passengerId + " steigt aus W" + wagonId + " aus | Fahrten: " + rideCount);
+        log.station("P" + passengerId + " steigt aus W" + wagonId + " aus | Fahrten: " + rideCount);
         notifyAll(); // Wagen wartet evtl. darauf, leer zu sein
     }
 
@@ -85,7 +87,7 @@ public class StationHandler implements Station.Iface {
     public synchronized void arrive(int wagonId) throws TException {
         seats.put(wagonId, new ArrayList<>());
         platformQueue.addLast(wagonId);
-        log("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
+        log.station("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
         notifyAll(); // wartende Passagiere koennen evtl. einsteigen
 
         // Warten, bis ich vorne am Bahnsteig bin UND voll
@@ -98,7 +100,7 @@ public class StationHandler implements Station.Iface {
     public synchronized void departure(int wagonId) throws TException {
         platformQueue.pollFirst();   // Bahnsteig frei fuer den naechsten Wagen
         track.addLast(wagonId);      // Abfahrtsreihenfolge merken
-        log("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
+        log.station("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
         departures++;
         notifyAll(); // naechster Wagen darf jetzt beladen werden
     }
@@ -111,7 +113,7 @@ public class StationHandler implements Station.Iface {
         }
 
         rideOver.add(wagonId);
-        log("W" + wagonId + " zurueck, Passagiere steigen aus");
+        log.station("W" + wagonId + " zurueck, Passagiere steigen aus");
         notifyAll(); // weckt die Passagiere in wait_for_ride_end
 
         // Warten, bis alle c Passagiere ausgestiegen sind
@@ -122,7 +124,7 @@ public class StationHandler implements Station.Iface {
         rideOver.remove(wagonId);
         track.pollFirst();
         completedRides++;
-        log("W" + wagonId + " leer");
+        log.station("W" + wagonId + " leer");
         notifyAll(); // naechster Wagen auf der Strecke darf entladen
     }
 
@@ -133,6 +135,30 @@ public class StationHandler implements Station.Iface {
         return String.format(
                 "[METRIC] c=%d waiting=%d platform=%d track=%d boardings=%d departures=%d rides=%d",
                 capacity, waitingPassengers.size(), platformQueue.size(), track.size(),
+                boardings, departures, completedRides);
+    }
+
+    /** Zustand fuer das Live-Dashboard; kopiert, damit die View nicht auf Live-Collections zugreift. */
+    public record Status(int capacity,
+                         List<Integer> waiting,
+                         List<Integer> platform,
+                         List<Integer> track,
+                         Map<Integer, List<Integer>> seats,
+                         Map<Integer, Integer> rideCount,
+                         long boardings,
+                         long departures,
+                         long completedRides) {}
+
+    public synchronized Status snapshot() {
+        Map<Integer, List<Integer>> seatsCopy = new LinkedHashMap<>();
+        seats.forEach((id, passengers) -> seatsCopy.put(id, List.copyOf(passengers)));
+        return new Status(
+                capacity,
+                List.copyOf(waitingPassengers),
+                List.copyOf(platformQueue),
+                List.copyOf(track),
+                Collections.unmodifiableMap(seatsCopy),
+                Collections.unmodifiableMap(new TreeMap<>(rideCount)),
                 boardings, departures, completedRides);
     }
 
@@ -151,7 +177,4 @@ public class StationHandler implements Station.Iface {
         }
     }
 
-    private void log(String msg) {
-        System.out.println("[Station] " + msg);
-    }
 }
