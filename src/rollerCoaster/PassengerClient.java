@@ -4,7 +4,7 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
 /**
- * Passagier-Knoten. Start: java PassengerClient <stationHost> <port> <passengerId>
+ * Passagier-Knoten. Start: java PassengerClient <stationHost> <port> <passengerId> [pauseMs]
  * Mehrere Passagiere = mehrere Prozesse mit unterschiedlicher ID (alle auf Maschine A).
  */
 public class PassengerClient {
@@ -12,6 +12,7 @@ public class PassengerClient {
         String host = args[0];
         int port = Integer.parseInt(args[1]);
         int id = Integer.parseInt(args[2]);
+        int pauseMs = args.length > 3 ? Integer.parseInt(args[3]) : 500;
 
         TTransport transport = new TSocket(host, port);
         transport.open();
@@ -28,7 +29,7 @@ public class PassengerClient {
             rides++;
             System.out.println("[P" + id + "] ausgestiegen, Fahrten: " + rides);
 
-            Thread.sleep(500);                              // kurz verschnaufen, dann wieder anstellen
+            Thread.sleep(pauseMs);                          // kurz verschnaufen, dann wieder anstellen
         }
     }
 }

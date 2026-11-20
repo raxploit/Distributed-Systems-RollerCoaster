@@ -1,16 +1,29 @@
-# VM-Seite: Die Station läuft normalerweise auf dem Laptop; ihre Tailnet-IP
-# steht in .env. Die Client-Services erzeugt docker/generate-compose.sh in
-# compose.clients.yaml (ein Container pro Client, feste ID).
-#
-# Für lokale Tests (Station + Clients in einem Set):
-#   in .env: STATION_HOST=station
-#   docker compose -f compose.yaml -f compose.clients.yaml --profile local up -d
+# VM-Seite: Station und Wagen als zwei getrennte Container.
+# Die Passagiere laufen auf dem Laptop über compose.laptop.yaml.
 
 services:
   station:
-    profiles: [local]
-    build: .
-    image: rollercoaster:local
-    command: ["java", "-cp", "build:lib/*", "rollerCoaster.StationServer", "${CAPACITY:-4}"]
-    ports: ["127.0.0.1:${STATION_PORT:-9090}:9090"]
+    build:
+      context: .
+      target: java
+    image: rollercoaster-java:local
+    # Intern immer 9090 (Wagen verbinden via station:9090); STATION_PORT ist der externe Port.
+    command: ["java", "-cp", "build:lib/*", "rollerCoaster.StationServer",
+              "--capacity=${CAPACITY:-4}", "--port=9090"]
+    ports: ["0.0.0.0:${STATION_PORT:-9090}:9090"]
+    volumes: ["./logs:/app/logs"]
     init: true
+    restart: unless-stopped
+
+  wagons:
+    build:
+      context: .
+      target: python
+    image: rollercoaster-python:local
+    command: ["python3", "-u", "src/python/wagon_runner.py",
+              "--host=station", "--port=9090",
+              "--count=${WAGONS:-4}", "--ride-ms=${RIDE_MS:-3000}",
+              "--boarding-ms=${BOARDING_MS:-0}", "--id-offset=${ID_OFFSET:-0}"]
+    depends_on: [station]
+    init: true
+    restart: unless-stopped

@@ -12,6 +12,7 @@ def main():
     port = int(sys.argv[2])
     wagon_id = int(sys.argv[3])
     base_ride_time = int(sys.argv[4]) if len(sys.argv) > 4 else 3000
+    boarding_ms = int(sys.argv[5]) if len(sys.argv) > 5 else 0
 
     socket = TSocket.TSocket(host, port)
     socket.setTimeout(None)  # Calls duerfen lange blockieren (arrive, ride_finished)
@@ -25,6 +26,9 @@ def main():
         while True:
             print(f"[W{wagon_id}] fahre in den Bahnsteig ein")
             station.arrive(wagon_id)  # blockiert, bis ich dran UND voll bin
+
+            if boarding_ms > 0:
+                time.sleep(boarding_ms / 1000)  # simulierte Boardingzeit nach dem vollen Wagen
 
             station.departure(wagon_id)
             ride_time = base_ride_time + random.randint(0, 2000)

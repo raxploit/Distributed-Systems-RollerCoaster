@@ -9,14 +9,14 @@ was fachlich am Projekt geändert wurde.
 **Kurzfassung:** Die Achterbahn ist ein zentraler Java-Monitor (`StationHandler`) mit
 Thrift-RPCs. Ein Wagen fährt erst voll ab, Passagiere werden FIFO bedient, die Strecke
 erzwingt Abfahrtsreihenfolge. Metriken laufen ohne IDL-Änderung über Zähler im Handler
-und eine 10-s-Periode in `logs/station.log`. Betrieb: Station nativ auf dem Laptop,
- Clients als einzelne Container in der VM (Tailnet). Generiert werden 14 Container
-(4 Wagen + 10 Passagiere). Docker-Image enthält bewusst Java **und** Python, weil
-Wagen Python und Passagiere Java sind.
+und eine 10-s-Periode in `logs/station.log`. **Aktueller Betrieb (seit 2026-11-20):
+drei Container** – `station` (Java) + `wagons` (Python) auf der VM, `passengers`
+(Java) auf dem Laptop. Damit sind Wagen und Passagiere auf verschiedenen physischen
+Maschinen. Die Sprachmischung Java/Python bleibt bewusst erhalten (Thrift-Demo).
 
 ---
 
-## 1. Architektur – Ist-Zustand
+## 1. Architektur – historischer Zustand (vor dem 2026-11-20)
 
 ```
 Laptop (nativ)                 VM (Docker, Tailnet)
@@ -160,7 +160,7 @@ keine ANSI-Codes in Dateien/Redirects landen.
   `StartWagons.cmd`, `StartWagons.ps1`. Sie waren veraltete Lokalstart-Helfer für
   `localhost` ohne `wait-for-station.sh` und wurden nirgends referenziert (weder README,
   Makefile, Compose noch Dockerfile). Die POSIX-Pendants `StartPassengers.sh` und
-  `StartWagons.sh` bleiben liegen, werden aber vom Docker-Betrieb ebenfalls nicht genutzt.
+  `StartWagons.sh` wurden später ebenfalls entfernt (siehe Abschnitt 11).
 
 ## 7. Konfiguration
 
@@ -187,36 +187,81 @@ ID_OFFSET=0
 - Format der `[Station]`- und `[METRIC]`-Zeilen.
 - Die Synchronisationsinvarianten selbst (nur Zähler/Snapshot/Events kamen hinzu).
 
-## 9. Offene Punkte / Entscheidungen (noch nicht umgesetzt)
+## 9. Offene Punkte / Entscheidungen
 
-1. **`TASK.md` verletzt aktuell:** „passengers and wagons should not be on the same
-   machines“. Bei uns laufen beide Gruppen als Container in **einer** VM. Container sind
-   getrennte Knoten, aber keine getrennten physischen Maschinen. Möglich: Passagiere VM /
-   Wagen Laptop, oder umgekehrt, oder zwei VMs.
-2. **Neuer Wunsch des Users (letzte Nachricht):** Start, Parameter für *einen Wagen-Container*
-   und *einen Passagier-Container* sowie Ende vom Laptop aus steuern; VM soll auf dem Port
-   lauschen; Parameter wie Boarding-Dauer / Fahrtdauer „dynamisch“ anpassen; Frage, ob die
-   Station im selben Container wie die Wagen liegen soll. **Noch nichts davon implementiert.**
-   Ich hatte empfohlen: Station + Wagen in einen Container (Wagen via `127.0.0.1`),
-   Passagiere separat, Port einmal exponiert. „Dynamisch“ zunächst als Startzeit-Env
-   (`BOARDING_MS`, `RIDE_MS`, `CAPACITY`, `WAGONS`), nicht als Live-Änderung zur Laufzeit
-   (das bräuchte einen zusätzlichen Control-RPC).
-3. `--capacity=4` und `--port=9090` als echte Flags fehlen; Port ist hartcodiert, Kapazität
-   nur Positionsargument.
-4. Keine Validierung von `c < m`.
-5. `minWorkerThreads(16)` könnte bei deutlich mehr als ~16–30 gleichzeitig blockierten
+Die alten Punkte 1–3 (TASK.md-Maschinentrennung, 3-Container-Plan,
+`--capacity=`/`--port=`) sind mit dem Update vom 2026-11-20 erledigt – siehe
+Abschnitt 11. Es bleibt offen:
+
+1. Keine Validierung von `c < m`.
+2. `minWorkerThreads(16)` könnte bei deutlich mehr als ~16–30 gleichzeitig blockierten
    Clients eng werden; für die Demo (4+10) reicht es.
+3. Echtes Live-Ändern von Parametern während des Laufs bräuchte einen zusätzlichen
+   Control-RPC; aktuell gibt es nur Startzeit-Env.
 
 ## 10. Prüfstand / Einschränkung
 
-- In dieser Umgebung ist **kein `javac`/Java installiert** → kein Kompilieren, kein Start,
-  keine Laufzeitprüfung. Alle Checks waren statisch: Klammern ausgeglichen, keine
-  `System.out`-Reste im Handler, eine `new StationHandler(...)`-Stelle, Python-Mock des
-  Layouts.
-- Prüfkommandos für den User:
-  ```shell
-  javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java
-  java -cp "build:lib/*" rollerCoaster.StationServer 4
-  tail -f logs/station.log
-  ```
+- `javac`/`java` 21 sind inzwischen verfügbar: Java kompiliert sauber
+  (`javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java`).
+- Smoke-Test durchgeführt: 2 Python-Wagen + 3 Java-Passagiere gegen einen Server mit
+  `c=2`; Boarding, Abfahrten, Aussteigen und Zähler liefen korrekt. Zweiter Test mit
+  `wagon_runner.py` und `PassengerRunner.java`: beide starten ihre Kinder, und nach
+  `SIGTERM` bleiben keine Client-Prozesse übrig.
+- `python3 -m py_compile` für alle Python-Dateien OK; `docker compose config` für beide
+  Compose-Dateien OK; `make -n up/down` zeigt die erwarteten SSH-/Docker-Kommandos.
+- **Einschränkung:** Docker-CLI ist da, aber kein Zugriff auf den Docker-Daemon
+  (`permission denied` auf `/var/run/docker.sock`) → Images konnten hier nicht gebaut
+  werden. Das muss auf den Zielmaschinen passieren.
 - Alle Änderungen liegen nach aktuellem Stand uncommitted auf Platte; kein Commit/Push.
+
+## 11. Update 2026-11-20: 3-Container-Topologie (aktuell)
+
+Dieser Abschnitt ersetzt die Abschnitte 1, 6 und 7 für den aktuellen Betrieb.
+
+### Neue Aufteilung
+
+```
+VM (Tailnet-IP)                      Laptop
+┌──────────────────────────┐         ┌──────────────────────────┐
+│ station  (Java, :9090)   │<────────│ passengers (Java)        │
+│ wagons   (Python)        │ Tailnet│  m Passagier-Prozesse    │
+│   n Wagen-Prozesse       │         └──────────────────────────┘
+└──────────────────────────┘
+```
+
+- `station` und `wagons` sind **zwei** Container auf der VM, `passengers` ist ein
+  Container auf dem Laptop. Wagen und Passagiere sind damit auf verschiedenen
+  physischen Maschinen → `TASK.md` jetzt erfüllt.
+- **Sprachen bewusst gemischt:** Station + Passagiere Java, Wagen Python. Der
+  Thrift-namespace `py`/`java` und die bestehenden Clients bleiben erhalten.
+
+### Neue/geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `Dockerfile` | zwei Targets: `java` (JRE + `build/` + `lib/`) und `python` (Python-Slim + `thrift` + `gen-py/`). Kein JRE in Wagen, kein Python in Station/Passagieren. |
+| `StationServer.java` | echte Flags `--capacity=N` und `--port=N`; nacktes Zahlenargument bleibt Alias für `capacity`. |
+| `PassengerClient.java` | optionales 4. Argument `pauseMs` (Default 500) statt hartcodierter Pause. |
+| `src/python/wagon_client.py` | optionales 5. Argument `boarding_ms`: Pause nach `arrive()` (voller Wagen) vor `departure()`. |
+| `src/rollerCoaster/PassengerRunner.java` | neu: wartet auf `STATION_HOST:PORT`, startet `PASSENGERS` Java-Subprocesse mit fester ID, `inheritIO()`, Restart bei Crash, Shutdown-Hook beendet alle Kinder. |
+| `src/python/wagon_runner.py` | neu: gleiche Aufgabe für `WAGONS` Python-Wagen (Socket-Retry, Subprocesse, SIGTERM-Handling). |
+| `compose.yaml` | jetzt `station` + `wagons` auf der VM; Port `0.0.0.0:9090`, Log-Volume `./logs:/app/logs`, `depends_on: [station]`. |
+| `compose.laptop.yaml` | neu: nur `passengers`, verbindet zu `${STATION_HOST}` (Tailnet-IP der VM). |
+| `Makefile` | Steuerung vom Laptop: `vm-up`/`vm-down` per SSH, `pax-up`/`pax-down` lokal, `up`/`down` für beides; `VM_HOST` defaultet auf `STATION_HOST`. |
+| `.env`, `.env.example` | `STATION_HOST` = VM-IP (nicht mehr Laptop-IP); `CAPACITY` zurück als VM-Parameter; neu `BOARDING_MS`, `PAUSE_MS`, `VM_USER`, `VM_REPO_DIR`. |
+| `README.md` | komplett auf die 3-Container-Topologie umgestellt. |
+
+### Entfernt
+
+`docker/generate-compose.sh`, `compose.clients.yaml`, `docker/wait-for-station.sh`,
+`StartPassengers.sh`, `StartWagons.sh` (und zuvor schon die vier Windows-Dateien).
+Die Retry-Logik steckt jetzt in `PassengerRunner.java` bzw. `wagon_runner.py`.
+
+### Parameter (Startzeit-Env, keine Live-Änderung)
+
+- VM: `CAPACITY`, `WAGONS`, `RIDE_MS`, `BOARDING_MS`, `STATION_PORT`, `ID_OFFSET`.
+- Laptop: `PASSENGERS`, `PAUSE_MS`, `ID_OFFSET`, `STATION_HOST`, `STATION_PORT`.
+
+Die Synchronisationslogik in `StationHandler` und das `[METRIC]`-Format sind
+**unverändert**. Jeder Client bleibt ein eigener Prozess mit eigener Thrift-Verbindung;
+die Container fassen nur mehrere Knoten pro Maschine zusammen.

@@ -5,11 +5,9 @@ __pycache__
 build
 logs
 *.log
-compose.clients.yaml
+compose.laptop.yaml
 .env
-Start*.sh
-*.cmd
-*.ps1
 README.md
+CHANGELOG.md
 Dockerfile
 .dockerignore

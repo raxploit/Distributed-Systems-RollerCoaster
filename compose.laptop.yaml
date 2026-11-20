@@ -1,0 +1,15 @@
+# Laptop-Seite: alle Passagiere in einem Container.
+# STATION_HOST ist die Tailnet-IP der VM, auf der die Station läuft.
+
+services:
+  passengers:
+    build:
+      context: .
+      target: java
+    image: rollercoaster-java:local
+    command: ["java", "-cp", "build:lib/*", "rollerCoaster.PassengerRunner",
+              "--host=${STATION_HOST}", "--port=${STATION_PORT:-9090}",
+              "--count=${PASSENGERS:-10}", "--id-offset=${ID_OFFSET:-0}",
+              "--pause-ms=${PAUSE_MS:-500}"]
+    init: true
+    restart: unless-stopped

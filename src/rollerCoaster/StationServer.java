@@ -30,6 +30,10 @@ public class StationServer {
                 colorFlag = false;
             } else if (arg.equals("--color")) {
                 colorFlag = true;
+            } else if (arg.startsWith("--capacity=")) {
+                capacity = Integer.parseInt(arg.substring("--capacity=".length()));
+            } else if (arg.startsWith("--port=")) {
+                port = Integer.parseInt(arg.substring("--port=".length()));
             } else if (arg.matches("\\d+")) {
                 capacity = Integer.parseInt(arg);
             } else {

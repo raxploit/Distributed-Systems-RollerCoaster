@@ -9,9 +9,8 @@ build/
 # Laufzeit-Logs
 logs/
 
-# Docker / verteilter Betrieb (generiert bzw. umgebungsspezifisch)
+# Docker / verteilter Betrieb (umgebungsspezifisch)
 .env
-compose.clients.yaml
 
 # Editor / OS
 .idea/
