@@ -40,17 +40,26 @@ In `.env`: `STATION_HOST` = Tailnet-IP des Laptops (Port 9090), `WAGONS`,
 java -cp "build:lib/*" rollerCoaster.StationServer 4
 ```
 
-Im Terminal läuft ein Live-Dashboard (4 Hz) mit Warteschlange, Bahnsteig,
-Strecke, Sitzplätzen, Zählern, Fahrten pro Passagier und den letzten fünf
-Ereignissen. Farben gibt es automatisch im echten Terminal. Die `[Station]`-
-und `[METRIC]`-Zeilen stehen jetzt in `logs/station.log`:
+Im Terminal läuft ein Live-Dashboard (4 Hz) mit englischen Beschriftungen:
+`CONFIG`, `UPTIME`, `WAITING`, `PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX`
+und `LAST 5`. Farben gibt es automatisch im echten Terminal. Die `[Station]`-
+und `[METRIC]`-Zeilen bleiben im alten Format in `logs/station.log`:
 
 ```shell
 tail -f logs/station.log
 ```
 
-Optionen: `--log=pfad`, `--width=N` (Default 96), `--no-dashboard`,
-`--no-color` (geht auch über die Umgebungsvariable `NO_COLOR`).
+### Parameter
+
+| Parameter | Bedeutung | Default |
+|---|---|---|
+| `4` (positionsabhängig) | Kapazität `c` | `4` |
+| `--log=pfad` | Ziel der Log-Datei | `logs/station.log` |
+| `--width=N` | Breite des Dashboards | `96` |
+| `--no-dashboard` | Kein Dashboard, Log-Zeilen auf stdout | aus |
+| `--no-color` / `NO_COLOR=1` | Farben aus | automatisch |
+| `--color` | Farben an, sofern nicht `NO_COLOR` gesetzt | automatisch |
+
 Ohne TTY oder mit `--no-dashboard` gehen die Log-Zeilen direkt auf stdout.
 
 ## Container starten (VM)

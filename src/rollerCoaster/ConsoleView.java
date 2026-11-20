@@ -9,9 +9,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
- * Einziger Schreiber auf stdout: Live-Dashboard mit Warteschlange, Bahnsteig,
- * Strecke, Sitzplätzen, Zählern, Fairness und den letzten fünf Ereignissen.
- * Farben gibt es nur im echten Terminal und wenn sie nicht abgeschaltet sind.
+ * Sole writer to stdout: live dashboard with waiting queue, platform, track,
+ * seats, counters, fairness and the last five events. Colors are only used
+ * in a real terminal and when they are not disabled.
  */
 public class ConsoleView implements AutoCloseable {
 
@@ -27,21 +27,27 @@ public class ConsoleView implements AutoCloseable {
     private static final String BLUE = ESC + "34m";
     private static final String DIM = ESC + "2m";
 
+    public static final int REFRESH_MS = 250;
+
     private static final int LABEL_WIDTH = 11;
     private static final int EVENTS = 5;
     private static final Pattern ANSI = Pattern.compile("\\x1B\\[[0-9;]*m");
 
+    private final int port;
     private final int width;
     private final boolean interactive;
     private final boolean colors;
+    private final String logPath;
     private final long startedNanos = System.nanoTime();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private boolean firstFrame = true;
 
-    public ConsoleView(int width, boolean interactive, boolean colors) {
+    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath) {
+        this.port = port;
         this.width = Math.max(60, width);
         this.interactive = interactive;
         this.colors = colors && interactive;
+        this.logPath = logPath;
         if (interactive) {
             System.out.print("\033[?25l"); // Cursor verstecken
             System.out.flush();
@@ -59,21 +65,25 @@ public class ConsoleView implements AutoCloseable {
         }
 
         StringBuilder b = new StringBuilder(4096);
-        top(b, "ACHTERBAHN · :9090");
-        row(b, "Laufzeit " + elapsed() + "   Kapazität " + s.capacity()
-                + "   Wagen " + s.seats().size()
-                + "   Farben " + (colors ? "an" : "aus")
-                + "   4 Hz");
+        top(b, "ROLLER COASTER · :" + port);
+        row(b, label("CONFIG") + "PORT " + col(MAGENTA, String.valueOf(port))
+                + "   CAPACITY " + col(MAGENTA, String.valueOf(s.capacity()))
+                + "   WAGONS " + col(MAGENTA, String.valueOf(s.seats().size()))
+                + "   REFRESH " + col(MAGENTA, (1000 / REFRESH_MS) + " Hz")
+                + "   COLORS " + col(colors ? GREEN : GRAY, colors ? "on" : "off")
+                + "   WIDTH " + col(MAGENTA, String.valueOf(width)));
+        row(b, indent() + "LOG " + col(CYAN, logPath));
+        row(b, label("UPTIME") + col(MAGENTA, elapsed()));
         middle(b);
-        row(b, label("WARTEND") + ids(s.waiting()));
-        row(b, label("BAHNSTEIG") + wagons(s.platform(), s.seats(), s.capacity()));
-        row(b, label("STRECKE") + track(s.track(), s.seats(), s.capacity()));
+        row(b, label("WAITING") + ids(s.waiting()));
+        row(b, label("PLATFORM") + wagons(s.platform(), s.seats(), s.capacity()));
+        row(b, label("TRACK") + track(s.track(), s.seats(), s.capacity()));
         middle(b);
-        row(b, label("ZÄHLER") + counters(s));
+        row(b, label("COUNTERS") + counters(s));
         middle(b);
         fairness(b, s.rideCount());
         middle(b);
-        row(b, label("LETZTE " + EVENTS));
+        row(b, label("LAST " + EVENTS));
         events(b, s.recentEvents());
         bottom(b);
 
@@ -114,7 +124,7 @@ public class ConsoleView implements AutoCloseable {
     private void row(StringBuilder b, String content) {
         String plain = stripAnsi(content);
         if (plain.length() > width - 4) {
-            content = fit(plain); // lange Zeilen ohne Farben kürzen
+            content = fit(plain); // truncate long lines without colors
             plain = stripAnsi(content);
         }
         b.append("│ ").append(content);
@@ -223,13 +233,13 @@ public class ConsoleView implements AutoCloseable {
 
     private String counters(StationHandler.Status s) {
         return "BOARDINGS " + col(MAGENTA, num(s.boardings()))
-                + "   ABFAHREN " + col(MAGENTA, num(s.departures()))
-                + "   FAHRTEN FERTIG " + col(MAGENTA, num(s.completedRides()));
+                + "   DEPARTURES " + col(MAGENTA, num(s.departures()))
+                + "   COMPLETED " + col(MAGENTA, num(s.completedRides()));
     }
 
     private void fairness(StringBuilder b, Map<Integer, Integer> rideCount) {
         if (rideCount.isEmpty()) {
-            row(b, label("FAHRTEN/P") + col(GRAY, "[-]"));
+            row(b, label("RIDES/PAX") + col(GRAY, "[-]"));
             return;
         }
 
@@ -248,7 +258,7 @@ public class ConsoleView implements AutoCloseable {
         for (int i = 0; i < entries.size(); i += 8) {
             List<String> chunk = entries.subList(i, Math.min(i + 8, entries.size()));
             String value = col(BLUE, String.join("  ", chunk));
-            row(b, (i == 0 ? label("FAHRTEN/P") : indent()) + value);
+            row(b, (i == 0 ? label("RIDES/PAX") : indent()) + value);
         }
 
         double avg = (double) sum / entries.size();

@@ -45,7 +45,7 @@ public class StationServer {
         boolean colors = colorFlag && !noColorEnv;
 
         StationLog log = new StationLog(logPath, !interactive);
-        ConsoleView view = new ConsoleView(width, interactive, colors);
+        ConsoleView view = new ConsoleView(port, width, interactive, colors, logPath.toString());
         Runtime.getRuntime().addShutdownHook(new Thread(log::close, "station-log-close"));
 
         StationHandler handler = new StationHandler(capacity, log);     // EINE Instanz fuer alle Clients
@@ -74,7 +74,7 @@ public class StationServer {
                 } catch (RuntimeException e) {
                     log.station("Dashboard-Fehler: " + e);
                 }
-            }, 250, 250, TimeUnit.MILLISECONDS);
+            }, ConsoleView.REFRESH_MS, ConsoleView.REFRESH_MS, TimeUnit.MILLISECONDS);
         }
 
         server.serve();

@@ -52,7 +52,7 @@ public class StationHandler implements Station.Iface {
     public synchronized int i_am_boarding(int passengerId) throws TException {
         waitingPassengers.addLast(passengerId);
         log.station("P" + passengerId + " wartet  | Queue: " + waitingPassengers);
-        recordEvent("P" + passengerId + " wartet");
+        recordEvent("P" + passengerId + " joined queue");
 
         // Warten, bis: ein Wagen beladen wird, er noch Platz hat UND ich vorne in der Schlange bin
         while (!(isLoadingWagonFree() && Integer.valueOf(passengerId).equals(waitingPassengers.peekFirst()))) {
@@ -65,7 +65,7 @@ public class StationHandler implements Station.Iface {
         passengerWagon.put(passengerId, wagonId);
         log.station("P" + passengerId + " steigt in W" + wagonId + " ein " + seats.get(wagonId));
         boardings++;
-        recordEvent("P" + passengerId + " → W" + wagonId + " (" + seats.get(wagonId).size() + "/" + capacity + ")");
+        recordEvent("P" + passengerId + " boarded W" + wagonId + " (" + seats.get(wagonId).size() + "/" + capacity + ")");
 
         notifyAll(); // naechster Passagier oder volle-Wagen-Bedingung pruefen
         return wagonId;
@@ -85,7 +85,7 @@ public class StationHandler implements Station.Iface {
         seats.get(wagonId).remove(Integer.valueOf(passengerId));
         int rides = rideCount.merge(passengerId, 1, Integer::sum);
         log.station("P" + passengerId + " steigt aus W" + wagonId + " aus | Fahrten: " + rideCount);
-        recordEvent("P" + passengerId + " ← W" + wagonId + " (Fahrt " + rides + ")");
+        recordEvent("P" + passengerId + " left W" + wagonId + " (ride " + rides + ")");
         notifyAll(); // Wagen wartet evtl. darauf, leer zu sein
     }
 
@@ -96,7 +96,7 @@ public class StationHandler implements Station.Iface {
         seats.put(wagonId, new ArrayList<>());
         platformQueue.addLast(wagonId);
         log.station("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
-        recordEvent("W" + wagonId + " am Bahnsteig");
+        recordEvent("W" + wagonId + " arrived");
         notifyAll(); // wartende Passagiere koennen evtl. einsteigen
 
         // Warten, bis ich vorne am Bahnsteig bin UND voll
@@ -111,7 +111,7 @@ public class StationHandler implements Station.Iface {
         track.addLast(wagonId);      // Abfahrtsreihenfolge merken
         log.station("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
         departures++;
-        recordEvent("W" + wagonId + " Abfahrt " + seats.get(wagonId));
+        recordEvent("W" + wagonId + " departed " + seats.get(wagonId));
         notifyAll(); // naechster Wagen darf jetzt beladen werden
     }
 
@@ -124,7 +124,7 @@ public class StationHandler implements Station.Iface {
 
         rideOver.add(wagonId);
         log.station("W" + wagonId + " zurueck, Passagiere steigen aus");
-        recordEvent("W" + wagonId + " zurück");
+        recordEvent("W" + wagonId + " returned");
         notifyAll(); // weckt die Passagiere in wait_for_ride_end
 
         // Warten, bis alle c Passagiere ausgestiegen sind
@@ -136,7 +136,7 @@ public class StationHandler implements Station.Iface {
         track.pollFirst();
         completedRides++;
         log.station("W" + wagonId + " leer");
-        recordEvent("W" + wagonId + " leer");
+        recordEvent("W" + wagonId + " empty");
         notifyAll(); // naechster Wagen auf der Strecke darf entladen
     }
 
