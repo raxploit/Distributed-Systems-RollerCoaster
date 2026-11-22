@@ -41,16 +41,18 @@ public class ConsoleView implements AutoCloseable {
     private final boolean interactive;
     private final boolean colors;
     private final String logPath;
+    private final long rideMs;
     private final long startedNanos = System.nanoTime();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private boolean firstFrame = true;
 
-    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath) {
+    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath, long rideMs) {
         this.port = port;
         this.width = Math.max(60, width);
         this.interactive = interactive;
         this.colors = colors && interactive;
         this.logPath = logPath;
+        this.rideMs = rideMs;
         if (interactive) {
             System.out.print("\033[?1049h"); // alternativer Screen: alter Terminalinhalt bleibt erhalten
             System.out.print("\033[?25l");   // Cursor verstecken
@@ -84,7 +86,7 @@ public class ConsoleView implements AutoCloseable {
         middle(b);
         row(b, label("WAITING") + ids(s.waiting()));
         row(b, label("PLATFORM") + wagons(s.platform(), s.seats(), s.capacity()));
-        row(b, label("TRACK") + track(s.track(), s.seats(), s.capacity()));
+        row(b, label("TRACK") + track(s.track(), s.rideStartedNanos(), s.capacity()));
         middle(b);
         row(b, label("COUNTERS") + counters(s));
         middle(b);
@@ -233,16 +235,39 @@ public class ConsoleView implements AutoCloseable {
         return String.join("  ", parts);
     }
 
-    private String track(List<Integer> values, Map<Integer, List<Integer>> seats, int capacity) {
+    private String track(List<Integer> values, Map<Integer, Long> rideStartedNanos, int capacity) {
         if (values.isEmpty()) {
             return col(GRAY, "[-]");
         }
         List<String> parts = new ArrayList<>();
-        for (int id : values) {
-            int occupied = seats.getOrDefault(id, List.of()).size();
-            parts.add("[" + col(BOLD_YELLOW, "W" + id) + " " + bar(occupied, capacity) + "]");
+        for (int i = 0; i < values.size(); i++) {
+            int id = values.get(i);
+            String head = i == 0 ? col(BOLD_YELLOW, "▶ ") : "";
+            parts.add("[" + col(BOLD_YELLOW, "W" + id) + " " + head
+                    + col(GRAY, capacity + "/" + capacity) + " "
+                    + progress(rideStartedNanos.get(id)) + "]");
         }
         return String.join(col(GRAY, " → "), parts);
+    }
+
+    /** Echter Fahrtfortschritt: Station merkt sich die Abfahrtszeit, RIDE_MS kommt aus .env. */
+    private String progress(Long startNanos) {
+        if (startNanos == null) {
+            return col(GRAY, "--");
+        }
+        long elapsedMs = Math.max(0, Duration.ofNanos(System.nanoTime() - startNanos).toMillis());
+        double ratio = rideMs > 0 ? (double) elapsedMs / rideMs : 0.0;
+        ratio = Math.max(0.0, Math.min(0.99, ratio));
+
+        final int cells = 10;
+        int filled = (int) Math.floor(ratio * cells);
+        String full = colors ? "━" : "=";
+        String tip = colors ? "╸" : ">";
+        String empty = colors ? "─" : "-";
+        return col(GREEN, full.repeat(filled))
+                + col(BOLD_YELLOW, tip)
+                + col(GRAY, empty.repeat(cells - filled - 1))
+                + " " + col(MAGENTA, String.format(Locale.ROOT, "%2.0f%%", ratio * 100));
     }
 
     private String bar(int occupied, int capacity) {

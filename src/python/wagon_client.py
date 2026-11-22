@@ -1,4 +1,3 @@
-import random
 import sys
 import time
 
@@ -31,7 +30,7 @@ def main():
                 time.sleep(boarding_ms / 1000)  # simulierte Boardingzeit nach dem vollen Wagen
 
             station.departure(wagon_id)
-            ride_time = base_ride_time + random.randint(0, 2000)
+            ride_time = base_ride_time  # feste Dauer -> die Station kann echten Fortschritt zeigen
             print(f"[W{wagon_id}] Abfahrt, Fahrt dauert {ride_time} ms")
             time.sleep(ride_time / 1000)  # die eigentliche Fahrt
 

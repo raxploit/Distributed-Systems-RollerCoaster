@@ -31,6 +31,9 @@ public class StationHandler implements Station.Iface {
     // Nur fuer die Demo: Fairness sichtbar machen
     private final Map<Integer, Integer> rideCount = new TreeMap<>();
 
+    // Nur fuer die Anzeige: wann ist ein Wagen abgefahren? (keine Sync-Logik)
+    private final Map<Integer, Long> rideStartedNanos = new HashMap<>();
+
     // Letzte Ereignisse fuer den Dashboard-Ticker
     private final Deque<String> recentEvents = new ArrayDeque<>();
     private long eventSeq;
@@ -93,6 +96,7 @@ public class StationHandler implements Station.Iface {
 
     @Override
     public synchronized void arrive(int wagonId) throws TException {
+        rideStartedNanos.remove(wagonId); // Sicherheit: alte Fahrt nicht mehr anzeigen
         seats.put(wagonId, new ArrayList<>());
         platformQueue.addLast(wagonId);
         log.station("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
@@ -109,6 +113,7 @@ public class StationHandler implements Station.Iface {
     public synchronized void departure(int wagonId) throws TException {
         platformQueue.pollFirst();   // Bahnsteig frei fuer den naechsten Wagen
         track.addLast(wagonId);      // Abfahrtsreihenfolge merken
+        rideStartedNanos.put(wagonId, System.nanoTime()); // Fortschritt fuer das Dashboard
         log.station("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
         departures++;
         recordEvent("W" + wagonId + " departed " + seats.get(wagonId));
@@ -134,6 +139,7 @@ public class StationHandler implements Station.Iface {
 
         rideOver.remove(wagonId);
         track.pollFirst();
+        rideStartedNanos.remove(wagonId);
         completedRides++;
         log.station("W" + wagonId + " leer");
         recordEvent("W" + wagonId + " empty");
@@ -157,6 +163,7 @@ public class StationHandler implements Station.Iface {
                          List<Integer> track,
                          Map<Integer, List<Integer>> seats,
                          Map<Integer, Integer> rideCount,
+                         Map<Integer, Long> rideStartedNanos,
                          List<String> recentEvents,
                          long boardings,
                          long departures,
@@ -172,6 +179,7 @@ public class StationHandler implements Station.Iface {
                 List.copyOf(track),
                 Collections.unmodifiableMap(seatsCopy),
                 Collections.unmodifiableMap(new TreeMap<>(rideCount)),
+                Map.copyOf(rideStartedNanos),
                 List.copyOf(recentEvents),
                 boardings, departures, completedRides);
     }

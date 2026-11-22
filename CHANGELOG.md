@@ -346,7 +346,40 @@ starten (Ursache des Problems vom 2026-11-22). Zusätzlich erscheint
 
 ### Unverändert
 
-`StationHandler`, Synchronisationslogik, Zähler, `[METRIC]`-Format und 10-s-Periode,
-`recentEvents`-Nummerierung (`#0042`), `StationLog`, IDL, generierter Code,
-Clients und Runner.
+Synchronisationslogik, Zähler, `[METRIC]`-Format und 10-s-Periode,
+`recentEvents`-Nummerierung (`#0042`), `StationLog`, IDL, generierter Code.
+`StationHandler` und Clients wurden in Abschnitt 14 nur für die Anzeige ergänzt.
+
+## 14. Update 2026-11-22: echter Fahrtfortschritt (aktuell)
+
+### Fahrtdauer und Boarding
+
+- `RIDE_MS` ist jetzt eine **feste** Dauer (Default `20000` ms). Der zufällige
+  Zuschlag im Python-Wagen (`random.randint(0, 2000)`) wurde entfernt. Damit ist
+  die vom Dashboard berechnete Progressionsanzeige exakt.
+- Die Station bekommt denselben Wert über das neue Flag `--ride-ms=$(RIDE_MS)`.
+- Passagiere warten vor dem Einsteigen eine zufällige Zeit im Bereich
+  `BOARD_MIN_MS`..`BOARD_MAX_MS` (Default 1000..5000 ms). Das geschieht im
+  `PassengerClient` **vor** `i_am_boarding()`, damit der Monitor nicht blockiert.
+  `PAUSE_MS` steht auf `0`.
+- Neue Runner-Flags: `--board-min-ms`, `--board-max-ms`.
+
+### Dashboard
+
+- `TRACK` zeigt statt des immer vollen Sitzplatzbalkens den echten Fortschritt:
+  `[W3 ▶ 4/4 ━━━━━━╸─── 62%]` (10 Zellen, auf 99 % geclemmt, vor Abfahrt `--`).
+- `▶` markiert weiter den Wagen, der als Nächstes entladen wird.
+- Ohne Farben wird `=`/`>`/`-` statt `━`/`╸`/`─` verwendet.
+
+### Anzeige-Daten im Handler (keine Logikänderung)
+
+- `rideStartedNanos`: Zeitstempel pro Wagen, gesetzt in `departure()`, gelöscht in
+  `ride_finished()` und safetyhalber in `arrive()`.
+- `Status` wurde um `Map<Integer, Long> rideStartedNanos` erweitert; `snapshot()`
+  liefert eine Kopie. `stats()`/`[METRIC]` sind unverändert.
+
+### Unverändert
+
+Thrift-IDL, generierter Code, Wait/Notify, FIFO-Reihenfolge, Zähler, 10-s-Metrik,
+`StationLog`, `ConsoleView`-Header, Makefile-Strg+C-Verhalten.
 

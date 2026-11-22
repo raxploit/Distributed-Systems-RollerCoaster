@@ -15,7 +15,7 @@ laptop: build
 	@echo "[make] Wagen-Log -> logs/wagons.log"
 	@set -e; \
 	java -Dstdout.encoding=UTF-8 -Dfile.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer \
-		--capacity=$(CAPACITY) --port=$(STATION_PORT) --log=logs/station.log & STATION_PID=$$!; \
+		--capacity=$(CAPACITY) --port=$(STATION_PORT) --ride-ms=$(RIDE_MS) --log=logs/station.log & STATION_PID=$$!; \
 	sleep 0.5; \
 	PYTHONPATH=gen-py .venv/bin/python -u src/python/wagon_runner.py \
 		--host=127.0.0.1 --port=$(STATION_PORT) --count=$(WAGONS) \
@@ -28,7 +28,8 @@ laptop: build
 vm: build
 	@java -cp "build:lib/*" rollerCoaster.PassengerRunner \
 		--host=$(STATION_HOST) --port=$(STATION_PORT) \
-		--count=$(PASSENGERS) --id-offset=$(ID_OFFSET) --pause-ms=$(PAUSE_MS)
+		--count=$(PASSENGERS) --id-offset=$(ID_OFFSET) --pause-ms=$(PAUSE_MS) \
+		--board-min-ms=$(BOARD_MIN_MS) --board-max-ms=$(BOARD_MAX_MS)
 
 wagons-log:
 	@tail -f logs/wagons.log

@@ -48,10 +48,12 @@ cp .env.example .env
 | `STATION_PORT` | Port der Station | `9090` |
 | `CAPACITY` | Sitze pro Wagen `c` | `4` |
 | `WAGONS` | Anzahl Wagen auf dem Laptop | `4` |
-| `RIDE_MS` | Basis-Fahrtdauer in ms | `3000` |
-| `BOARDING_MS` | simulierte Boardingzeit in ms | `0` |
+| `RIDE_MS` | **feste** Fahrtdauer in ms (Grundlage des Fortschrittsbalkens) | `20000` |
+| `BOARDING_MS` | Türen-zu-Pause nach vollem Wagen in ms | `0` |
 | `PASSENGERS` | Anzahl Passagiere auf der VM | `10` |
-| `PAUSE_MS` | Pause zwischen zwei Fahrten in ms | `500` |
+| `BOARD_MIN_MS` | minimale zufällige Ankunftszeit vor dem Einsteigen | `1000` |
+| `BOARD_MAX_MS` | maximale zufällige Ankunftszeit vor dem Einsteigen | `5000` |
+| `PAUSE_MS` | Pause nach dem Aussteigen in ms | `0` |
 | `ID_OFFSET` | Offset für Client-IDs | `0` |
 
 ## Start
@@ -104,6 +106,10 @@ ist. Der Titel ist einfach `ROLLER COASTER`. Es zeigt `CONFIG` (mit `[PORT …]`
 `[CAPACITY …]`, `[WAGONS …]`, `[REFRESH …]`), `LOG`, `UPTIME`, `LINK`
 (`SERVER`/`WAGON`/`PASSENGERS` mit Anzahl der gesehenen Knoten), `WAITING`,
 `PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX`, `LAST 5` und `HINT`.
+Auf `TRACK` ersetzt ein echter Fahrtfortschritt (`━━━━╸── 62 %`) den sonst immer
+vollen Sitzplatzbalken: Die Station merkt sich die Abfahrtszeit und rechnet sie
+gegen `RIDE_MS`. Die Passagiere kommen zufällig alle 1–5 s an, sodass sich
+`WAITING` und der Bahnsteig sichtbar füllen.
 
 Die TTY-Erkennung prüft stdout (`test -t 1`), daher erscheint das Dashboard auch
 dann, wenn die Station vom Makefile im Hintergrund gestartet wird. Die Breite
@@ -116,9 +122,9 @@ Für einen nativen Serverstart ohne Makefile:
 
 ```shell
 javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java
-java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090
+java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090 --ride-ms=20000
 ```
 
-Weitere Server-Flags: `--log=pfad`, `--width=N`, `--no-dashboard`, `--color` /
+Weitere Server-Flags: `--log=pfad`, `--ride-ms=N`, `--width=N`, `--no-dashboard`, `--color` /
 `--no-color`. Ohne TTY oder mit `--no-dashboard` gehen die Log-Zeilen direkt
 auf stdout.

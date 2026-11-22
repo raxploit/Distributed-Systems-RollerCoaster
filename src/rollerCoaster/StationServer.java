@@ -15,6 +15,7 @@ public class StationServer {
         int port = 9090;
         int capacity = 4;
         Integer widthFlag = null;
+        long rideMs = 20000;
         Path logPath = Path.of("logs", "station.log");
         boolean dashboard = true;
         boolean colorFlag = true;
@@ -36,6 +37,8 @@ public class StationServer {
                 capacity = Integer.parseInt(arg.substring("--capacity=".length()));
             } else if (arg.startsWith("--port=")) {
                 port = Integer.parseInt(arg.substring("--port=".length()));
+            } else if (arg.startsWith("--ride-ms=")) {
+                rideMs = Long.parseLong(arg.substring("--ride-ms=".length()));
             } else if (arg.matches("\\d+")) {
                 capacity = Integer.parseInt(arg);
             } else {
@@ -52,7 +55,7 @@ public class StationServer {
         int width = widthFlag != null ? widthFlag : (tty ? detectWidth(96) : 96);
 
         StationLog log = new StationLog(logPath, !interactive);
-        ConsoleView view = new ConsoleView(port, width, interactive, colors, logPath.toString());
+        ConsoleView view = new ConsoleView(port, width, interactive, colors, logPath.toString(), rideMs);
         Runtime.getRuntime().addShutdownHook(new Thread(log::close, "station-log-close"));
 
         StationHandler handler = new StationHandler(capacity, log);     // EINE Instanz fuer alle Clients

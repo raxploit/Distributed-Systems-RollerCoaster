@@ -34,7 +34,9 @@ public final class PassengerRunner {
         int port = 9090;
         int count = 10;
         int offset = 0;
-        int pauseMs = 500;
+        int pauseMs = 0;
+        int boardMinMs = 1000;
+        int boardMaxMs = 5000;
 
         for (String arg : args) {
             if (arg.startsWith("--host=")) {
@@ -47,6 +49,10 @@ public final class PassengerRunner {
                 offset = Integer.parseInt(arg.substring("--id-offset=".length()));
             } else if (arg.startsWith("--pause-ms=")) {
                 pauseMs = Integer.parseInt(arg.substring("--pause-ms=".length()));
+            } else if (arg.startsWith("--board-min-ms=")) {
+                boardMinMs = Integer.parseInt(arg.substring("--board-min-ms=".length()));
+            } else if (arg.startsWith("--board-max-ms=")) {
+                boardMaxMs = Integer.parseInt(arg.substring("--board-max-ms=".length()));
             } else {
                 System.err.println("Unbekanntes Argument: " + arg);
                 return;
@@ -60,7 +66,8 @@ public final class PassengerRunner {
             int id = offset + i;
             String[] cmd = {
                     "java", "-cp", "build:lib/*", "rollerCoaster.PassengerClient",
-                    host, String.valueOf(port), String.valueOf(id), String.valueOf(pauseMs)
+                    host, String.valueOf(port), String.valueOf(id), String.valueOf(pauseMs),
+                    String.valueOf(boardMinMs), String.valueOf(boardMaxMs)
             };
             children.add(new Child(id, cmd, start(cmd)));
         }
