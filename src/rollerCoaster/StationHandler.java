@@ -11,6 +11,8 @@ public class StationHandler implements Station.Iface {
 
     private final int capacity; // c
     private final StationLog log;
+    private final int expectedWagons; // Anzahl erwarteter Wagen fuer die sortierte Startphase
+    private final Set<Integer> wagonsSeen = new HashSet<>();
 
     // Passagiere, die auf eine Fahrt warten (FIFO -> keine Starvation, faire Reihenfolge)
     private final Deque<Integer> waitingPassengers = new ArrayDeque<>();
@@ -44,9 +46,10 @@ public class StationHandler implements Station.Iface {
     private long departures;
     private long completedRides;
 
-    public StationHandler(int capacity, StationLog log) {
+    public StationHandler(int capacity, StationLog log, int expectedWagons) {
         this.capacity = capacity;
         this.log = log;
+        this.expectedWagons = expectedWagons;
     }
 
     // ---------------- Passagiere ----------------
@@ -98,7 +101,16 @@ public class StationHandler implements Station.Iface {
     public synchronized void arrive(int wagonId) throws TException {
         rideStartedNanos.remove(wagonId); // Sicherheit: alte Fahrt nicht mehr anzeigen
         seats.put(wagonId, new ArrayList<>());
-        platformQueue.addLast(wagonId);
+        if (expectedWagons > 0 && wagonsSeen.add(wagonId) && wagonsSeen.size() <= expectedWagons) {
+            // Startphase: unabhängig vom Start-Timing immer 1, 2, 3, 4 ...
+            List<Integer> ordered = new ArrayList<>(platformQueue);
+            ordered.add(wagonId);
+            Collections.sort(ordered);
+            platformQueue.clear();
+            platformQueue.addAll(ordered);
+        } else {
+            platformQueue.addLast(wagonId); // normaler Betrieb / Wagen-Neustart
+        }
         log.station("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
         recordEvent("W" + wagonId + " arrived");
         notifyAll(); // wartende Passagiere koennen evtl. einsteigen

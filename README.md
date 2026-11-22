@@ -47,7 +47,7 @@ cp .env.example .env
 | `STATION_HOST` | Tailnet-IP des **Laptops** (Ziel der Passagiere) | – |
 | `STATION_PORT` | Port der Station | `9090` |
 | `CAPACITY` | Sitze pro Wagen `c` | `4` |
-| `WAGONS` | Anzahl Wagen auf dem Laptop | `4` |
+| `WAGONS` | Anzahl Wagen auf dem Laptop; bestimmt auch die sortierte Startreihenfolge `1..n` | `4` |
 | `RIDE_MS` | **feste** Fahrtdauer in ms (Grundlage des Fortschrittsbalkens) | `20000` |
 | `BOARDING_MS` | Türen-zu-Pause nach vollem Wagen in ms | `0` |
 | `PASSENGERS` | Anzahl Passagiere auf der VM | `10` |
@@ -109,7 +109,13 @@ ist. Der Titel ist einfach `ROLLER COASTER`. Es zeigt `CONFIG` (mit `[PORT …]`
 Auf `TRACK` ersetzt ein echter Fahrtfortschritt (`━━━━╸── 62 %`) den sonst immer
 vollen Sitzplatzbalken: Die Station merkt sich die Abfahrtszeit und rechnet sie
 gegen `RIDE_MS`. Die Passagiere kommen zufällig alle 1–5 s an, sodass sich
-`WAITING` und der Bahnsteig sichtbar füllen.
+`WAITING` und der Bahnsteig sichtbar füllen. Die Startreihenfolge der Wagen ist
+deterministisch `1, 2, 3, 4` – die Station sortiert die `platformQueue` in der
+Startphase, bis alle `WAGONS` gesehen wurden. Danach gilt wieder normales FIFO.
+`RIDES/PAX` zeigt oben `min`, `max` (jeweils mit Passagier-ID), `avg` und
+`spread = max - min`; darunter 5 fest ausgerichtete Kacheln pro Zeile im Format
+`[P1  29 ↑2]` – die Zahl ist die Fahrtenzahl, der Pfeil die gerundete Abweichung
+vom Durchschnitt.
 
 Die TTY-Erkennung prüft stdout (`test -t 1`), daher erscheint das Dashboard auch
 dann, wenn die Station vom Makefile im Hintergrund gestartet wird. Die Breite
@@ -122,9 +128,9 @@ Für einen nativen Serverstart ohne Makefile:
 
 ```shell
 javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java
-java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090 --ride-ms=20000
+java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090 --ride-ms=20000 --wagons=4
 ```
 
-Weitere Server-Flags: `--log=pfad`, `--ride-ms=N`, `--width=N`, `--no-dashboard`, `--color` /
+Weitere Server-Flags: `--log=pfad`, `--ride-ms=N`, `--wagons=N`, `--width=N`, `--no-dashboard`, `--color` /
 `--no-color`. Ohne TTY oder mit `--no-dashboard` gehen die Log-Zeilen direkt
 auf stdout.

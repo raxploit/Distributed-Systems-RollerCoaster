@@ -383,3 +383,57 @@ Synchronisationslogik, Zähler, `[METRIC]`-Format und 10-s-Periode,
 Thrift-IDL, generierter Code, Wait/Notify, FIFO-Reihenfolge, Zähler, 10-s-Metrik,
 `StationLog`, `ConsoleView`-Header, Makefile-Strg+C-Verhalten.
 
+## 15. Update 2026-11-22: deterministische Wagen-Startreihenfolge (aktuell)
+
+### Problem
+
+`wagon_runner.py` startet alle Wagen in einer dichten Schleife. Welcher Prozess
+zuerst `arrive()` erreicht, landete vorne in der `platformQueue` – die Reihenfolge
+war bei jedem Start anders.
+
+### Lösung
+
+- Neues Server-Flag `--wagons=$(WAGONS)` (Default `0` = altes Verhalten).
+- `StationHandler` kennt `expectedWagons` und ein `wagonsSeen`-Set.
+- In `arrive()` wird während der Startphase sortiert eingefügt, bis alle
+  erwarteten Wagen gesehen wurden. Danach wieder normales `addLast()`.
+- Ergebnis: immer `W1, W2, W3, W4` im Bahnsteig, unabhängig vom Start-Timing.
+
+### Sonderfälle
+
+- Weniger Wagen als `WAGONS` gestartet: sortierte Einfügung bleibt aktiv, die
+  vorhandenen Wagen sind trotzdem korrekt geordnet.
+- Wagen-Neustart mit gleicher ID: already seen → normales `addLast()` am Ende.
+- `--wagons=0` (manueller Start ohne Flag): unverändertes altes Verhalten.
+
+### Unverändert
+
+Wait/Notify, Füllregel, Strecken-Reihenfolge, Zähler, `[METRIC]`-Format, IDL,
+generierter Code, Clients, `ConsoleView`.
+
+## 16. Update 2026-11-22: RIDES/PAX als Kacheln (aktuell)
+
+### Vorher
+
+`P1 29  P2 28  …` in Blöcken zu 8, danach `min/max/avg` – eine unstrukturierte
+Zahlenliste ohne direkt sichtbare Fairness-Information.
+
+### Jetzt
+
+```text
+RIDES/PAX  min 24 (P9) · max 29 (P1) · avg 26.7 · spread 5
+           [P1  29 ↑2] [P2  28 ↑1] [P3  26 ↓1] [P4  27 → ] [P5  26 ↓1]
+           [P6  26 ↓1] [P7  26 ↓1] [P8  25 ↓2] [P9  24 ↓3] [P10 28 ↑1]
+```
+
+- Summary mit `min`/`max` inkl. Passagier-ID, `avg` und **`spread = max - min`**.
+- Pro Passagier eine fest breite Kachel `[P1  29 ↑2]`: ID cyan, Fahrten magenta,
+  Pfeil = gerundete Abweichung vom Average (`↑`/`↓`/`→`).
+- `P%-2d` hält die Kacheln auch bei zweistelligen IDs gleich lang; 5 pro Zeile.
+- Farben: `↑` grün, `↓` blau, `→` grau; ohne Farben bleiben die Zeichen lesbar.
+
+### Unverändert
+
+`rideCount` aus `Status`, Sortierung nach ID, `StationHandler`, IDL, Log-Format,
+alle anderen Dashboard-Bereiche.
+

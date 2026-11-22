@@ -301,28 +301,53 @@ public class ConsoleView implements AutoCloseable {
             return;
         }
 
-        List<String> entries = new ArrayList<>();
         int min = Integer.MAX_VALUE;
         int max = 0;
+        int minId = 0;
+        int maxId = 0;
         int sum = 0;
         for (Map.Entry<Integer, Integer> e : rideCount.entrySet()) {
             int rides = e.getValue();
-            min = Math.min(min, rides);
-            max = Math.max(max, rides);
+            if (rides < min) {
+                min = rides;
+                minId = e.getKey();
+            }
+            if (rides > max) {
+                max = rides;
+                maxId = e.getKey();
+            }
             sum += rides;
-            entries.add("P" + e.getKey() + " " + rides);
         }
 
-        for (int i = 0; i < entries.size(); i += 8) {
-            List<String> chunk = entries.subList(i, Math.min(i + 8, entries.size()));
-            String value = col(BLUE, String.join("  ", chunk));
-            row(b, (i == 0 ? label("RIDES/PAX") : indent()) + value);
+        double avg = (double) sum / rideCount.size();
+        row(b, label("RIDES/PAX")
+                + "min " + col(BLUE, String.valueOf(min)) + " (" + col(BLUE, "P" + minId) + ")"
+                + " · max " + col(BLUE, String.valueOf(max)) + " (" + col(BLUE, "P" + maxId) + ")"
+                + " · avg " + col(BLUE, String.format(Locale.ROOT, "%.1f", avg))
+                + " · spread " + col(BLUE, String.valueOf(max - min)));
+
+        List<String> chips = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> e : rideCount.entrySet()) {
+            int rides = e.getValue();
+            int delta = (int) Math.round(rides - avg);
+            String arrow = delta > 0 ? "↑" + delta : delta < 0 ? "↓" + (-delta) : "→ ";
+            chips.add(paxChip(e.getKey(), rides, arrow, delta));
         }
 
-        double avg = (double) sum / entries.size();
-        row(b, indent() + "min " + col(BLUE, String.valueOf(min))
-                + " / max " + col(BLUE, String.valueOf(max))
-                + " / avg " + col(BLUE, String.format(Locale.ROOT, "%.1f", avg)));
+        for (int i = 0; i < chips.size(); i += 5) {
+            List<String> chunk = chips.subList(i, Math.min(i + 5, chips.size()));
+            row(b, indent() + String.join(" ", chunk));
+        }
+    }
+
+    /** Eine fest breite Kachel pro Passagier: [P1  29 ↑2]. */
+    private String paxChip(int id, int rides, String arrow, int delta) {
+        String arrowColor = delta > 0 ? GREEN : delta < 0 ? BLUE : GRAY;
+        return col(GRAY, "[")
+                + col(CYAN, String.format(Locale.ROOT, "P%-2d", id)) + " "
+                + col(MAGENTA, String.format(Locale.ROOT, "%2d", rides)) + " "
+                + col(arrowColor, arrow)
+                + col(GRAY, "]");
     }
 
     private void events(StringBuilder b, List<String> recentEvents) {

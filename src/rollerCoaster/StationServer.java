@@ -16,6 +16,7 @@ public class StationServer {
         int capacity = 4;
         Integer widthFlag = null;
         long rideMs = 20000;
+        int expectedWagons = 0; // 0 = altes Verhalten (keine sortierte Startphase)
         Path logPath = Path.of("logs", "station.log");
         boolean dashboard = true;
         boolean colorFlag = true;
@@ -39,6 +40,8 @@ public class StationServer {
                 port = Integer.parseInt(arg.substring("--port=".length()));
             } else if (arg.startsWith("--ride-ms=")) {
                 rideMs = Long.parseLong(arg.substring("--ride-ms=".length()));
+            } else if (arg.startsWith("--wagons=")) {
+                expectedWagons = Integer.parseInt(arg.substring("--wagons=".length()));
             } else if (arg.matches("\\d+")) {
                 capacity = Integer.parseInt(arg);
             } else {
@@ -58,7 +61,7 @@ public class StationServer {
         ConsoleView view = new ConsoleView(port, width, interactive, colors, logPath.toString(), rideMs);
         Runtime.getRuntime().addShutdownHook(new Thread(log::close, "station-log-close"));
 
-        StationHandler handler = new StationHandler(capacity, log);     // EINE Instanz fuer alle Clients
+        StationHandler handler = new StationHandler(capacity, log, expectedWagons); // EINE Instanz fuer alle Clients
         Station.Processor<StationHandler> processor = new Station.Processor<>(handler);
 
         TServerSocket socket = new TServerSocket(port);
