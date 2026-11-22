@@ -63,6 +63,8 @@ make laptop
 ```
 
 - kompiliert die Java-Klassen,
+- prüft, dass `.venv/bin/python` und das Python-Paket `thrift` vorhanden sind
+  (sonst bricht `make` mit einer klaren Meldung ab),
 - startet den `StationServer` im Vordergrund → **farbiges Live-Dashboard (4 Hz)**,
 - startet `wagon_runner.py` im Hintergrund; dessen Ausgabe geht nach
   `logs/wagons.log`, damit das Dashboard nicht gestört wird,
@@ -98,15 +100,21 @@ make station-log
 ```
 
 Das Dashboard erscheint nur auf dem Laptop, weil dort ein echtes TTY vorhanden
-ist. Es zeigt `CONFIG`, `UPTIME`, `WAITING`, `PLATFORM`, `TRACK`, `COUNTERS`,
-`RIDES/PAX` und `LAST 5`. Farben gibt es automatisch; aus mit `NO_COLOR=1` oder
-`--no-color`.
+ist. Der Titel ist einfach `ROLLER COASTER`. Es zeigt `CONFIG` (mit `[PORT …]`,
+`[CAPACITY …]`, `[WAGONS …]`, `[REFRESH …]`), `LOG`, `UPTIME`, `LINK`
+(`SERVER`/`WAGON`/`PASSENGERS` mit Anzahl der gesehenen Knoten), `WAITING`,
+`PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX`, `LAST 5` und `HINT`.
+
+Die Breite wird automatisch aus `COLUMNS` bzw. `stty size` übernommen (Fallback
+96 Spalten); `--width=N` überschreibt sie. Farben gibt es automatisch; aus mit
+`NO_COLOR=1` oder `--no-color`. Das Dashboard nutzt den alternativen Screen:
+Nach Strg+C steht der alte Terminalinhalt wieder da.
 
 Für einen nativen Serverstart ohne Makefile:
 
 ```shell
 javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java
-java -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090
+java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090
 ```
 
 Weitere Server-Flags: `--log=pfad`, `--width=N`, `--no-dashboard`, `--color` /

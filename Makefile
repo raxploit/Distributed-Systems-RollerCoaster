@@ -9,9 +9,12 @@ build:
 # Laptop: Station im Vordergrund (Dashboard), Wagen-Log in Datei.
 # Strg+C beendet beide Prozesse.
 laptop: build
+	@test -x .venv/bin/python || { echo "FEHLER: .venv fehlt – python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"; exit 1; }
+	@.venv/bin/python -c 'import thrift' 2>/dev/null || { echo "FEHLER: thrift fehlt in .venv – .venv/bin/pip install -r requirements.txt"; exit 1; }
 	@mkdir -p logs
+	@echo "[make] Wagen-Log -> logs/wagons.log"
 	@set -e; \
-	java -cp "build:lib/*" rollerCoaster.StationServer \
+	java -Dstdout.encoding=UTF-8 -Dfile.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer \
 		--capacity=$(CAPACITY) --port=$(STATION_PORT) --log=logs/station.log & STATION_PID=$$!; \
 	sleep 0.5; \
 	PYTHONPATH=gen-py .venv/bin/python -u src/python/wagon_runner.py \

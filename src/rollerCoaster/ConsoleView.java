@@ -1,17 +1,20 @@
 package rollerCoaster;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
- * Sole writer to stdout: live dashboard with waiting queue, platform, track,
- * seats, counters, fairness and the last five events. Colors are only used
- * in a real terminal and when they are not disabled.
+ * Sole writer to stdout in interactive mode: live dashboard with waiting queue,
+ * platform, track, seats, counters, fairness and the last five events. Colors
+ * are only used in a real terminal and when they are not disabled.
  */
 public class ConsoleView implements AutoCloseable {
 
@@ -49,7 +52,8 @@ public class ConsoleView implements AutoCloseable {
         this.colors = colors && interactive;
         this.logPath = logPath;
         if (interactive) {
-            System.out.print("\033[?25l"); // Cursor verstecken
+            System.out.print("\033[?1049h"); // alternativer Screen: alter Terminalinhalt bleibt erhalten
+            System.out.print("\033[?25l");   // Cursor verstecken
             System.out.flush();
             Runtime.getRuntime().addShutdownHook(new Thread(this::reset, "station-view-reset"));
         }
@@ -64,16 +68,19 @@ public class ConsoleView implements AutoCloseable {
             return;
         }
 
+        Set<Integer> passengers = new HashSet<>(s.waiting());
+        s.seats().values().forEach(passengers::addAll);
+        passengers.addAll(s.rideCount().keySet());
+
         StringBuilder b = new StringBuilder(4096);
-        top(b, "ROLLER COASTER · :" + port);
-        row(b, label("CONFIG") + "PORT " + col(MAGENTA, String.valueOf(port))
-                + "   CAPACITY " + col(MAGENTA, String.valueOf(s.capacity()))
-                + "   WAGONS " + col(MAGENTA, String.valueOf(s.seats().size()))
-                + "   REFRESH " + col(MAGENTA, (1000 / REFRESH_MS) + " Hz")
-                + "   COLORS " + col(colors ? GREEN : GRAY, colors ? "on" : "off")
-                + "   WIDTH " + col(MAGENTA, String.valueOf(width)));
-        row(b, indent() + "LOG " + col(CYAN, logPath));
+        top(b, "ROLLER COASTER");
+        row(b, label("CONFIG") + tag("PORT", port)
+                + " " + tag("CAPACITY", s.capacity())
+                + " " + tag("WAGONS", s.seats().size())
+                + " " + tag("REFRESH", (1000 / REFRESH_MS) + " Hz"));
+        row(b, label("LOG") + col(CYAN, shortLogPath()));
         row(b, label("UPTIME") + col(MAGENTA, elapsed()));
+        row(b, label("LINK") + link(s.seats().size(), passengers.size()));
         middle(b);
         row(b, label("WAITING") + ids(s.waiting()));
         row(b, label("PLATFORM") + wagons(s.platform(), s.seats(), s.capacity()));
@@ -85,6 +92,8 @@ public class ConsoleView implements AutoCloseable {
         middle(b);
         row(b, label("LAST " + EVENTS));
         events(b, s.recentEvents());
+        middle(b);
+        row(b, label("HINT") + col(GRAY, "Ctrl+C to exit  ·  wagons: logs/wagons.log  ·  metrics: logs/station.log"));
         bottom(b);
 
         System.out.print((firstFrame ? "\033[2J" : "") + "\033[H" + b + "\033[J");
@@ -99,7 +108,7 @@ public class ConsoleView implements AutoCloseable {
 
     private void reset() {
         if (interactive && closed.compareAndSet(false, true)) {
-            System.out.print("\033[?25h\n"); // Cursor wieder an
+            System.out.print("\033[?1049l" + RESET + "\033[?25h\n");
             System.out.flush();
         }
     }
@@ -130,6 +139,30 @@ public class ConsoleView implements AutoCloseable {
         b.append("│ ").append(content);
         b.append(" ".repeat(Math.max(0, width - 4 - plain.length())));
         b.append(" │\n");
+    }
+
+    private String tag(String key, Object value) {
+        return col(GRAY, "[") + col(CYAN, key) + " " + col(MAGENTA, String.valueOf(value)) + col(GRAY, "]");
+    }
+
+    private String link(int wagonCount, int passengerCount) {
+        return "SERVER " + online() + " online"
+                + "   WAGON " + online() + " online (" + col(MAGENTA, String.valueOf(wagonCount)) + ")"
+                + "   PASSENGERS " + online() + " online (" + col(MAGENTA, String.valueOf(passengerCount)) + ")";
+    }
+
+    private String online() {
+        return col(BOLD_GREEN, "●");
+    }
+
+    private String shortLogPath() {
+        try {
+            Path p = Path.of(logPath);
+            int n = p.getNameCount();
+            return n > 2 ? p.subpath(n - 2, n).toString() : p.toString();
+        } catch (RuntimeException e) {
+            return logPath;
+        }
     }
 
     private String elapsed() {
@@ -197,7 +230,7 @@ public class ConsoleView implements AutoCloseable {
                     + (passengers.isEmpty() ? "" : " (" + col(CYAN, joinIds(passengers)) + ")") + "]";
             parts.add(box);
         }
-        return String.join(" ", parts);
+        return String.join("  ", parts);
     }
 
     private String track(List<Integer> values, Map<Integer, List<Integer>> seats, int capacity) {
@@ -273,7 +306,7 @@ public class ConsoleView implements AutoCloseable {
             return;
         }
         for (String event : recentEvents) {
-            row(b, indent() + col(DIM, fit(event)));
+            row(b, indent() + col(DIM, event));
         }
     }
 }

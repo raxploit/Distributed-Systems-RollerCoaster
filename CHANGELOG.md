@@ -267,7 +267,7 @@ Die Synchronisationslogik in `StationHandler` und das `[METRIC]`-Format sind
 **unverändert**. Jeder Client bleibt ein eigener Prozess mit eigener Thrift-Verbindung;
 die Container fassen nur mehrere Knoten pro Maschine zusammen.
 
-## 12. Update 2026-11-22: zurück zu nativen Prozessen (aktuell)
+## 12. Update 2026-11-22: zurück zu nativen Prozessen (Topologie aktuell)
 
 Dieser Abschnitt ersetzt Abschnitt 11. Alle Docker-Artefakte wurden entfernt.
 
@@ -306,6 +306,43 @@ vorherigen Docker-Makefile-Ziele. `.env` enthält keine `VM_*`-Variablen mehr.
 
 ### Unverändert
 
-`StationHandler`-Monitor, `[METRIC]`-Format, `ConsoleView`, `StationLog`, IDL,
-generierter Code, `PassengerClient.java`, `wagon_client.py`, Runner-Logik.
+`StationHandler`-Monitor, `[METRIC]`-Format, `StationLog`, IDL, generierter Code,
+`PassengerClient.java`, `wagon_client.py`, Runner-Logik. `ConsoleView` wurde in
+Abschnitt 13 weiter angepasst.
+
+## 13. Update 2026-11-22: Dashboard-Politur (aktuell)
+
+### Header
+
+- Titel nur noch `ROLLER COASTER` (kein Port, kein `.`/`:`). Port bleibt in `CONFIG`.
+- `CONFIG` mit Klammern pro Wert: `[PORT 9090] [CAPACITY 4] [WAGONS 4] [REFRESH 4 Hz]`.
+  `COLORS` und `WIDTH` werden nicht mehr angezeigt.
+- `LOG` ist eine eigene Kategorie und zeigt nur die letzten zwei Pfadsegmente
+  (`logs/station.log`).
+- `UPTIME` bleibt; neu ist `LINK` mit `SERVER ● online`, `WAGON ● online (n)` und
+  `PASSENGERS ● online (n)`. Die Zahlen kommen ausschließlich aus dem bestehenden
+  `Status`: Wagen aus `seats.keySet()`, Passagiere aus `waiting`, Sitzplatz-IDs
+  und `rideCount`. Kein Heartbeat, kein IDL-/Handler-Change.
+- `PASSENGERS` korrekt geschrieben.
+
+### Breite und Terminalverhalten
+
+- Breite automatisch aus `COLUMNS`, sonst `stty size < /dev/tty`, Fallback 96.
+  `--width=N` überschreibt weiterhin alles.
+- Alternativer Screen (`\033[?1049h` / `\033[?1049l`): nach Strg+C ist der alte
+  Terminalinhalt erhalten. `reset()` stellt außerdem Farben und Cursor wieder her.
+- Ohne TTY unverändert: keine ANSI-Codes, `[Station]`/`[METRIC]` auf stdout.
+
+### Makefile
+
+`make laptop` prüft jetzt vor dem Start `.venv/bin/python` und `import thrift`
+und bricht mit klarer Meldung ab, statt einen toten Hintergrundprozess zu
+starten (Ursache des Problems vom 2026-11-22). Zusätzlich erscheint
+`[make] Wagen-Log -> logs/wagons.log`.
+
+### Unverändert
+
+`StationHandler`, Synchronisationslogik, Zähler, `[METRIC]`-Format und 10-s-Periode,
+`recentEvents`-Nummerierung (`#0042`), `StationLog`, IDL, generierter Code,
+Clients und Runner.
 
