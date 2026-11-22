@@ -1,6 +1,6 @@
 # CHANGELOG – Logik, Metriken, Architektur
 
-Stand: 2026-11-20
+Stand: 2026-11-22
 
 Zweck dieser Datei: alles festhalten, was **nicht** Optik ist (also nicht Dashboard-Layout,
 Farben, Labels, Rahmen). Damit kann ich auf Anfrage schnell und korrekt zusammenfassen,
@@ -9,10 +9,11 @@ was fachlich am Projekt geändert wurde.
 **Kurzfassung:** Die Achterbahn ist ein zentraler Java-Monitor (`StationHandler`) mit
 Thrift-RPCs. Ein Wagen fährt erst voll ab, Passagiere werden FIFO bedient, die Strecke
 erzwingt Abfahrtsreihenfolge. Metriken laufen ohne IDL-Änderung über Zähler im Handler
-und eine 10-s-Periode in `logs/station.log`. **Aktueller Betrieb (seit 2026-11-20):
-drei Container** – `station` (Java) + `wagons` (Python) auf der VM, `passengers`
-(Java) auf dem Laptop. Damit sind Wagen und Passagiere auf verschiedenen physischen
-Maschinen. Die Sprachmischung Java/Python bleibt bewusst erhalten (Thrift-Demo).
+und eine 10-s-Periode in `logs/station.log`. **Aktueller Betrieb (seit 2026-11-22):
+alles nativ** – `StationServer` + `wagon_runner.py` auf dem Laptop, `PassengerRunner`
+auf der VM. Damit sind Wagen und Passagiere auf verschiedenen physischen Maschinen,
+und das Dashboard läuft wieder im echten Terminal. Die Sprachmischung Java/Python
+bleibt bewusst erhalten (Thrift-Demo).
 
 ---
 
@@ -116,8 +117,8 @@ Defaults: `port = 9090`, `capacity = 4`, `width = 96`, `logPath = logs/station.l
 | unbekannt | Fehlermeldung auf stderr + Return |
 
 TTY-Erkennung: `System.console() != null && TERM != "dumb"` → `interactive`.
-Ohne TTY (Redirect, `docker logs`) werden automatisch die Log-Zeilen ausgegeben, damit
-keine ANSI-Codes in Dateien/Redirects landen.
+Ohne TTY (z. B. Redirect in eine Datei) werden automatisch die Log-Zeilen
+ausgegeben, damit keine ANSI-Codes in Dateien/Redirects landen.
 
 ## 5. Clients
 
@@ -207,14 +208,14 @@ Abschnitt 11. Es bleibt offen:
   `c=2`; Boarding, Abfahrten, Aussteigen und Zähler liefen korrekt. Zweiter Test mit
   `wagon_runner.py` und `PassengerRunner.java`: beide starten ihre Kinder, und nach
   `SIGTERM` bleiben keine Client-Prozesse übrig.
-- `python3 -m py_compile` für alle Python-Dateien OK; `docker compose config` für beide
-  Compose-Dateien OK; `make -n up/down` zeigt die erwarteten SSH-/Docker-Kommandos.
-- **Einschränkung:** Docker-CLI ist da, aber kein Zugriff auf den Docker-Daemon
-  (`permission denied` auf `/var/run/docker.sock`) → Images konnten hier nicht gebaut
-  werden. Das muss auf den Zielmaschinen passieren.
+- `python3 -m py_compile` für alle Python-Dateien OK; `make -n laptop/vm` zeigt die
+  erwarteten Kommandos.
+- Strg+C-Tests: `timeout -s INT` auf `make laptop` (2 Wagen) und `make vm` (2 Passagiere)
+  beendet in beiden Fällen Runner und alle Kinder ohne Restprozesse.
+- Docker-Artefakte sind inzwischen entfernt; Docker wird nicht mehr benötigt.
 - Alle Änderungen liegen nach aktuellem Stand uncommitted auf Platte; kein Commit/Push.
 
-## 11. Update 2026-11-20: 3-Container-Topologie (aktuell)
+## 11. Update 2026-11-20: 3-Container-Topologie (historisch, ersetzt durch 12)
 
 Dieser Abschnitt ersetzt die Abschnitte 1, 6 und 7 für den aktuellen Betrieb.
 
@@ -265,3 +266,46 @@ Die Retry-Logik steckt jetzt in `PassengerRunner.java` bzw. `wagon_runner.py`.
 Die Synchronisationslogik in `StationHandler` und das `[METRIC]`-Format sind
 **unverändert**. Jeder Client bleibt ein eigener Prozess mit eigener Thrift-Verbindung;
 die Container fassen nur mehrere Knoten pro Maschine zusammen.
+
+## 12. Update 2026-11-22: zurück zu nativen Prozessen (aktuell)
+
+Dieser Abschnitt ersetzt Abschnitt 11. Alle Docker-Artefakte wurden entfernt.
+
+### Neue Topologie
+
+```
+Laptop (echtes Terminal)             VM (Tailnet)
+┌────────────────────────┐           ┌────────────────────────┐
+│ StationServer (Java)   │<──────────│ PassengerRunner (Java) │
+│ wagon_runner (Python)  │  :9090    │ m Passagier-Prozesse   │
+│ n Wagen-Prozesse       │           └────────────────────────┘
+└────────────────────────┘
+```
+
+- `STATION_HOST` ist wieder die **Tailnet-IP des Laptops** (`100.67.237.25`).
+- Laptop: Station im Vordergrund → Dashboard sichtbar; Wagen laufen nativ, ihre
+  Ausgabe geht nach `logs/wagons.log`, damit das Dashboard nicht überschrieben wird.
+- VM: Passagiere laufen nativ via `PassengerRunner.java`, Ausgabe im Terminal.
+- Wagen (Laptop) und Passagiere (VM) bleiben auf verschiedenen physischen Maschinen →
+  `TASK.md` weiterhin erfüllt.
+
+### Makefile
+
+| Ziel | Verhalten |
+|---|---|
+| `make build` | kompiliert alle Java-Klassen |
+| `make laptop` | kompiliert, startet Station im Vordergrund und Wagen im Hintergrund; `trap` auf `INT`/`TERM`/`EXIT` beendet beide bei Strg+C; kurze Verzögerung verhindert Retry-Lärm beim Wagen-Start |
+| `make vm` | kompiliert, startet `PassengerRunner` im Vordergrund; Strg+C beendet Runner und alle Kinder |
+| `make wagons-log` | `tail -f logs/wagons.log` |
+| `make station-log` | `tail -f logs/station.log` |
+
+### Entfernt
+
+`Dockerfile`, `compose.yaml`, `compose.laptop.yaml`, `.dockerignore` und alle
+vorherigen Docker-Makefile-Ziele. `.env` enthält keine `VM_*`-Variablen mehr.
+
+### Unverändert
+
+`StationHandler`-Monitor, `[METRIC]`-Format, `ConsoleView`, `StationLog`, IDL,
+generierter Code, `PassengerClient.java`, `wagon_client.py`, Runner-Logik.
+

@@ -1,52 +1,34 @@
 -include .env
 export
 
-VM_HOST ?= $(STATION_HOST)
-VM_USER ?= arch
-VM_REPO_DIR ?= $(CURDIR)
+.PHONY: build laptop vm wagons-log station-log
 
-VM_SSH := $(VM_USER)@$(VM_HOST)
-VM_COMPOSE := ssh $(VM_SSH) 'cd $(VM_REPO_DIR) && docker compose -f compose.yaml'
-LAPTOP_COMPOSE := docker compose -f compose.laptop.yaml
+build:
+	javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java
 
-.PHONY: vm-up vm-down pax-up pax-down up down vm-logs pax-logs logs vm-ps pax-ps ps vm-config pax-config config
+# Laptop: Station im Vordergrund (Dashboard), Wagen-Log in Datei.
+# Strg+C beendet beide Prozesse.
+laptop: build
+	@mkdir -p logs
+	@set -e; \
+	java -cp "build:lib/*" rollerCoaster.StationServer \
+		--capacity=$(CAPACITY) --port=$(STATION_PORT) --log=logs/station.log & STATION_PID=$$!; \
+	sleep 0.5; \
+	PYTHONPATH=gen-py .venv/bin/python -u src/python/wagon_runner.py \
+		--host=127.0.0.1 --port=$(STATION_PORT) --count=$(WAGONS) \
+		--ride-ms=$(RIDE_MS) --boarding-ms=$(BOARDING_MS) \
+		--id-offset=$(ID_OFFSET) >> logs/wagons.log 2>&1 & WAGON_PID=$$!; \
+	trap 'kill $$STATION_PID $$WAGON_PID 2>/dev/null || true; wait 2>/dev/null || true' INT TERM EXIT; \
+	wait $$STATION_PID $$WAGON_PID
 
-vm-up:
-	$(VM_COMPOSE) up -d --build
+# VM: Passagiere im Vordergrund; Strg+C beendet Runner und alle Kinder.
+vm: build
+	@java -cp "build:lib/*" rollerCoaster.PassengerRunner \
+		--host=$(STATION_HOST) --port=$(STATION_PORT) \
+		--count=$(PASSENGERS) --id-offset=$(ID_OFFSET) --pause-ms=$(PAUSE_MS)
 
-vm-down:
-	$(VM_COMPOSE) down
+wagons-log:
+	@tail -f logs/wagons.log
 
-pax-up:
-	$(LAPTOP_COMPOSE) up -d --build
-
-pax-down:
-	$(LAPTOP_COMPOSE) down
-
-up: vm-up pax-up
-
-down: pax-down vm-down
-
-vm-logs:
-	$(VM_COMPOSE) logs -f --tail=100
-
-pax-logs:
-	$(LAPTOP_COMPOSE) logs -f --tail=100
-
-logs: vm-logs
-
-vm-ps:
-	$(VM_COMPOSE) ps
-
-pax-ps:
-	$(LAPTOP_COMPOSE) ps
-
-ps: vm-ps pax-ps
-
-vm-config:
-	$(VM_COMPOSE) config
-
-pax-config:
-	$(LAPTOP_COMPOSE) config
-
-config: vm-config pax-config
+station-log:
+	@tail -f logs/station.log

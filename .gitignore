@@ -9,7 +9,7 @@ build/
 # Laufzeit-Logs
 logs/
 
-# Docker / verteilter Betrieb (umgebungsspezifisch)
+# Umgebungsspezifische Konfiguration
 .env
 
 # Editor / OS
