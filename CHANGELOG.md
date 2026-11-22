@@ -327,8 +327,8 @@ Abschnitt 13 weiter angepasst.
 
 ### Breite und Terminalverhalten
 
-- Breite automatisch aus `COLUMNS`, sonst `stty size < /dev/tty`, Fallback 96.
-  `--width=N` überschreibt weiterhin alles.
+- Breite zunächst automatisch aus `COLUMNS`/`stty`; in Abschnitt 17 auf feste
+  100 Spalten umgestellt (siehe dort). `--width=N` bleibt als Override.
 - Alternativer Screen (`\033[?1049h` / `\033[?1049l`): nach Strg+C ist der alte
   Terminalinhalt erhalten. `reset()` stellt außerdem Farben und Cursor wieder her.
 - TTY-Erkennung nicht mehr über `System.console()`, sondern über `test -t 1`
@@ -436,4 +436,13 @@ RIDES/PAX  min 24 (P9) · max 29 (P1) · avg 26.7 · spread 5
 
 `rideCount` aus `Status`, Sortierung nach ID, `StationHandler`, IDL, Log-Format,
 alle anderen Dashboard-Bereiche.
+
+## 17. Update 2026-11-22: feste Dashboard-Breite (aktuell)
+
+- Die automatische Breitenerkennung (`COLUMNS`, `stty size < /dev/tty`) wurde
+  entfernt. Die `detectWidth()`-Methode und die dafür nötigen Imports sind weg.
+- Default ist jetzt eine **feste Breite von 100 Spalten**, passend zum Layout.
+  Ist das Terminal schmaler, werden Zeilen abgeschnitten – das ist gewollt.
+- `--width=N` bleibt als manueller Override erhalten.
+- Unverändert: TTY-Erkennung über `test -t 1`, Farben, alle Inhalte.
 

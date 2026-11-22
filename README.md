@@ -119,8 +119,8 @@ vom Durchschnitt.
 
 Die TTY-Erkennung prüft stdout (`test -t 1`), daher erscheint das Dashboard auch
 dann, wenn die Station vom Makefile im Hintergrund gestartet wird. Die Breite
-wird automatisch aus `COLUMNS` bzw. `stty size` übernommen (Fallback 96 Spalten);
-`--width=N` überschreibt sie. Farben gibt es automatisch; aus mit
+ist fest **100 Spalten** (zu schmale Fenster schneiden ab); mit `--width=N` lässt
+sie sich manuell überschreiben. Farben gibt es automatisch; aus mit
 `NO_COLOR=1` oder `--no-color`. Das Dashboard nutzt den alternativen Screen:
 Nach Strg+C steht der alte Terminalinhalt wieder da.
 
