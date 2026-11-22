@@ -3,6 +3,7 @@ package rollerCoaster;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,18 +42,25 @@ public class ConsoleView implements AutoCloseable {
     private final boolean interactive;
     private final boolean colors;
     private final String logPath;
+    private final String wagonLogPath;
     private final long rideMs;
+    private final String laptopHost;
+    private final String vmHost;
     private final long startedNanos = System.nanoTime();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private boolean firstFrame = true;
 
-    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath, long rideMs) {
+    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath, long rideMs,
+                       String laptopHost, String vmHost) {
         this.port = port;
         this.width = Math.max(60, width);
         this.interactive = interactive;
         this.colors = colors && interactive;
         this.logPath = logPath;
+        this.wagonLogPath = wagonLogSibling(logPath);
         this.rideMs = rideMs;
+        this.laptopHost = laptopHost;
+        this.vmHost = vmHost;
         if (interactive) {
             System.out.print("\033[?1049h"); // alternativer Screen: alter Terminalinhalt bleibt erhalten
             System.out.print("\033[?25l");   // Cursor verstecken
@@ -80,9 +88,13 @@ public class ConsoleView implements AutoCloseable {
                 + " " + tag("CAPACITY", s.capacity())
                 + " " + tag("WAGONS", s.seats().size())
                 + " " + tag("REFRESH", (1000 / REFRESH_MS) + " Hz"));
-        row(b, label("LOG") + col(CYAN, shortLogPath()));
+        row(b, label("LOG") + "STATION " + col(CYAN, shortLog(logPath))
+                + "   WAGONS " + col(CYAN, shortLog(wagonLogPath)));
         row(b, label("UPTIME") + col(MAGENTA, elapsed()));
         row(b, label("LINK") + link(s.seats().size(), passengers.size()));
+        row(b, label("COORD") + coord(s));
+        row(b, label("NODES") + nodes(s.seats().keySet(), s.rideCount().keySet()));
+        row(b, label("BLOCKED") + blocked(s));
         middle(b);
         row(b, label("WAITING") + ids(s.waiting()));
         row(b, label("PLATFORM") + wagons(s.platform(), s.seats(), s.capacity()));
@@ -95,7 +107,7 @@ public class ConsoleView implements AutoCloseable {
         row(b, label("LAST " + EVENTS));
         events(b, s.recentEvents());
         middle(b);
-        row(b, label("HINT") + col(GRAY, "Ctrl+C to exit  ·  wagons: logs/wagons.log  ·  metrics: logs/station.log"));
+        row(b, label("HINT") + col(GRAY, "Ctrl+C to exit"));
         bottom(b);
 
         System.out.print((firstFrame ? "\033[2J" : "") + "\033[H" + b + "\033[J");
@@ -157,13 +169,103 @@ public class ConsoleView implements AutoCloseable {
         return col(BOLD_GREEN, "●");
     }
 
-    private String shortLogPath() {
+    /** Coordinator: notifyAll() ist der Herzschlag des einen synchronized-Monitors. */
+    private String coord(StationHandler.Status s) {
+        String count = col(MAGENTA, String.format(Locale.ROOT, "%,d", s.signalCount()));
+        String last;
+        if (s.lastSignalNanos() == 0 || s.lastSignalMethod().isEmpty()) {
+            last = col(GRAY, "-");
+        } else {
+            long ageMs = Math.max(0, Duration.ofNanos(System.nanoTime() - s.lastSignalNanos()).toMillis());
+            last = col(CYAN, s.lastSignalMethod())
+                    + " " + col(GRAY, String.format(Locale.ROOT, "(%.1fs)", ageMs / 1000.0));
+        }
+        return "StationServer [Java] · 1 monitor · wait()/notifyAll() · signals " + count
+                + " · last: " + last;
+    }
+
+    /** Physische Verteilung und Sprachmischung; leere IPs erscheinen als "?". */
+    private String nodes(Set<Integer> wagonIds, Set<Integer> passengerIds) {
+        return "[" + host(laptopHost, "LAPTOP") + "] Station (Java) + " + idRange(wagonIds, "W") + " (Python)"
+                + "   |   [" + host(vmHost, "VM") + "] " + idRange(passengerIds, "P") + " (Java)";
+    }
+
+    private String host(String ip, String role) {
+        return (ip == null || ip.isBlank() ? "?" : ip) + " " + role;
+    }
+
+    /** W1-W4 bei lueckenfreien IDs, sonst eine kompakte Liste. */
+    private String idRange(Set<Integer> ids, String prefix) {
+        if (ids.isEmpty()) {
+            return "-";
+        }
+        List<Integer> sorted = new ArrayList<>(ids);
+        Collections.sort(sorted);
+        int first = sorted.get(0);
+        int last = sorted.get(sorted.size() - 1);
+        if (sorted.size() == 1) {
+            return prefix + first;
+        }
+        if (last - first == sorted.size() - 1) {
+            return prefix + first + "-" + prefix + last;
+        }
+        if (sorted.size() > 6) {
+            // Lückenhafte IDs kompakt als Bereich + Anzahl (sonst sprengt die Zeile das Layout)
+            return prefix + first + "-" + prefix + last + " (" + sorted.size() + ")";
+        }
+        List<String> parts = new ArrayList<>();
+        for (int id : sorted) {
+            parts.add(prefix + id);
+        }
+        return String.join(",", parts);
+    }
+
+    /** Clients, die gerade im Monitor des Coordinators parken (aus dem Snapshot ableitbar). */
+    private String blocked(StationHandler.Status s) {
+        List<Integer> riding = new ArrayList<>();
+        s.track().forEach(id -> {
+            List<Integer> seats = s.seats().get(id);
+            if (seats != null) {
+                riding.addAll(seats);
+            }
+        });
+        return blockedCall("i_am_boarding", "P", s.waiting())
+                + " · " + blockedCall("arrive", "W", s.platform())
+                + " · " + blockedCall("wait_for_ride_end", "P", riding);
+    }
+
+    private String blockedCall(String method, String prefix, List<Integer> ids) {
+        List<Integer> sorted = new ArrayList<>(ids);
+        Collections.sort(sorted);
+        int shown = Math.min(4, sorted.size());
+        List<String> parts = new ArrayList<>();
+        for (int i = 0; i < shown; i++) {
+            parts.add(prefix + sorted.get(i));
+        }
+        String list = parts.isEmpty() ? "-" : String.join(",", parts);
+        if (sorted.size() > shown) {
+            list += "+" + (sorted.size() - shown);
+        }
+        return col(CYAN, method) + " " + list + " " + col(MAGENTA, "(" + sorted.size() + ")");
+    }
+
+    /** Wagen-Log liegt im selben Verzeichnis wie das Stations-Log. */
+    private static String wagonLogSibling(String stationLog) {
         try {
-            Path p = Path.of(logPath);
+            Path parent = Path.of(stationLog).getParent();
+            return parent == null ? "wagons.log" : parent.resolve("wagons.log").toString();
+        } catch (RuntimeException e) {
+            return "wagons.log";
+        }
+    }
+
+    private String shortLog(String path) {
+        try {
+            Path p = Path.of(path);
             int n = p.getNameCount();
             return n > 2 ? p.subpath(n - 2, n).toString() : p.toString();
         } catch (RuntimeException e) {
-            return logPath;
+            return path;
         }
     }
 

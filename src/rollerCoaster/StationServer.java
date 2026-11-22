@@ -15,6 +15,8 @@ public class StationServer {
         int width = 120; // feste Dashboard-Breite: 4 Wagen auf TRACK passen vollständig hin; zu schmale Fenster schneiden ab
         long rideMs = 20000;
         int expectedWagons = 0; // 0 = altes Verhalten (keine sortierte Startphase)
+        String laptopHost = ""; // Tailnet-IP des Laptops (nur fuer die NODES-Anzeige)
+        String vmHost = "";     // Tailnet-IP der VM (nur fuer die NODES-Anzeige)
         Path logPath = Path.of("logs", "station.log");
         boolean dashboard = true;
         boolean colorFlag = true;
@@ -40,6 +42,10 @@ public class StationServer {
                 rideMs = Long.parseLong(arg.substring("--ride-ms=".length()));
             } else if (arg.startsWith("--wagons=")) {
                 expectedWagons = Integer.parseInt(arg.substring("--wagons=".length()));
+            } else if (arg.startsWith("--laptop-host=")) {
+                laptopHost = arg.substring("--laptop-host=".length());
+            } else if (arg.startsWith("--vm-host=")) {
+                vmHost = arg.substring("--vm-host=".length());
             } else if (arg.matches("\\d+")) {
                 capacity = Integer.parseInt(arg);
             } else {
@@ -55,7 +61,8 @@ public class StationServer {
         boolean colors = colorFlag && !noColorEnv;
 
         StationLog log = new StationLog(logPath, !interactive);
-        ConsoleView view = new ConsoleView(port, width, interactive, colors, logPath.toString(), rideMs);
+        ConsoleView view = new ConsoleView(port, width, interactive, colors, logPath.toString(), rideMs,
+                laptopHost, vmHost);
         Runtime.getRuntime().addShutdownHook(new Thread(log::close, "station-log-close"));
 
         StationHandler handler = new StationHandler(capacity, log, expectedWagons); // EINE Instanz fuer alle Clients

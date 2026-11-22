@@ -310,7 +310,7 @@ vorherigen Docker-Makefile-Ziele. `.env` enthält keine `VM_*`-Variablen mehr.
 `PassengerClient.java`, `wagon_client.py`, Runner-Logik. `ConsoleView` wurde in
 Abschnitt 13 weiter angepasst.
 
-## 13. Update 2026-11-22: Dashboard-Politur (aktuell)
+## 13. Update 2026-11-22: Dashboard-Politur
 
 ### Header
 
@@ -350,7 +350,7 @@ Synchronisationslogik, Zähler, `[METRIC]`-Format und 10-s-Periode,
 `recentEvents`-Nummerierung (`#0042`), `StationLog`, IDL, generierter Code.
 `StationHandler` und Clients wurden in Abschnitt 14 nur für die Anzeige ergänzt.
 
-## 14. Update 2026-11-22: echter Fahrtfortschritt (aktuell)
+## 14. Update 2026-11-22: echter Fahrtfortschritt
 
 ### Fahrtdauer und Boarding
 
@@ -383,7 +383,7 @@ Synchronisationslogik, Zähler, `[METRIC]`-Format und 10-s-Periode,
 Thrift-IDL, generierter Code, Wait/Notify, FIFO-Reihenfolge, Zähler, 10-s-Metrik,
 `StationLog`, `ConsoleView`-Header, Makefile-Strg+C-Verhalten.
 
-## 15. Update 2026-11-22: deterministische Wagen-Startreihenfolge (aktuell)
+## 15. Update 2026-11-22: deterministische Wagen-Startreihenfolge
 
 ### Problem
 
@@ -411,7 +411,7 @@ war bei jedem Start anders.
 Wait/Notify, Füllregel, Strecken-Reihenfolge, Zähler, `[METRIC]`-Format, IDL,
 generierter Code, Clients, `ConsoleView`.
 
-## 16. Update 2026-11-22: RIDES/PAX als Kacheln (aktuell)
+## 16. Update 2026-11-22: RIDES/PAX als Kacheln
 
 ### Vorher
 
@@ -437,7 +437,7 @@ RIDES/PAX  min 24 (P9) · max 29 (P1) · avg 26.7 · spread 5
 `rideCount` aus `Status`, Sortierung nach ID, `StationHandler`, IDL, Log-Format,
 alle anderen Dashboard-Bereiche.
 
-## 17. Update 2026-11-22: feste Dashboard-Breite (aktuell)
+## 17. Update 2026-11-22: feste Dashboard-Breite
 
 - Die automatische Breitenerkennung (`COLUMNS`, `stty size < /dev/tty`) wurde
   entfernt. Die `detectWidth()`-Methode und die dafür nötigen Imports sind weg.
@@ -447,4 +447,56 @@ alle anderen Dashboard-Bereiche.
   Ist das Terminal schmaler, werden Zeilen abgeschnitten – das ist gewollt.
 - `--width=N` bleibt als manueller Override erhalten.
 - Unverändert: TTY-Erkennung über `test -t 1`, Farben, alle Inhalte.
+
+## 18. Update 2026-11-22: beide Logs im Header
+
+- `LOG` zeigt jetzt beide Pfade in einer Zeile:
+  `LOG  STATION logs/station.log   WAGONS logs/wagons.log`.
+- Der Wagen-Log-Pfad wird aus dem Stations-Log-Pfad abgeleitet (gleiches
+  Verzeichnis, Datei `wagons.log`) – `--log=…` wirkt also auf beide.
+- `HINT` enthält nur noch `Ctrl+C to exit`; die doppelten Pfadangaben sind weg.
+
+## 19. Update 2026-11-22: verteilte Systeme im Dashboard (aktuell)
+
+### COORD – der Coordinator lebt
+
+- Neue Felder im `StationHandler`: `signalCount`, `lastSignalMethod`,
+  `lastSignalNanos`. Der Helper `signal(method)` zählt und zeitstempelt jedes
+  `notifyAll()` und wird an allen 6 Signal-Stellen benutzt.
+- `COORD` zeigt: `StationServer [Java] · 1 monitor · wait()/notifyAll() ·
+  signals 1,312 · last: i_am_disembarking (0.2s)`. Vor dem ersten Signal steht
+  `last: -`.
+- Die Synchronisation selbst ist unverändert – nur ihre Aktivität wird sichtbar.
+
+### NODES – physische Verteilung und Sprachmischung
+
+- Neue Flags `--laptop-host` und `--vm-host` an der Station, gefüttert aus
+  `STATION_HOST` und dem neuen `VM_HOST` in `.env` (nur auf dem Laptop).
+- Anzeige: `[100.67.237.25 LAPTOP] Station (Java) + W1-W4 (Python)   |   [VM-IP VM] P1-P20 (Java)`.
+- Leeres `VM_HOST` → `[? VM]`. Lückenhafte ID-Mengen werden als Bereich mit
+  Anzahl komprimiert, damit die 120-Spalten-Zeile nicht abgeschnitten wird.
+- Die VM braucht keine Änderung: Ihre `.env` enthält mit `STATION_HOST` schon
+  die IP des Laptops.
+
+### BLOCKED – wait()/notify live
+
+- Aus dem bestehenden `Status` abgeleitet: `waiting` → `i_am_boarding`,
+  `platform` → `arrive`, Sitze der Wagen auf `track` → `wait_for_ride_end`.
+- `ride_finished` fehlt bewusst: Die 20 s Fahrt sind ein `sleep()` im
+  Python-Client, also gerade kein Blockieren im Monitor.
+
+### LAST 5 – echter RPC-Trace
+
+- Alle Event-Texte nutzen jetzt die sechs IDL-Methodennamen, z. B.
+  `i_am_boarding(P3) → W1 [2/4]`, `departure(W2) → [7, 1, 8, 6]`,
+  `ride_finished(W2) → unloading`.
+- Neues Event beim **Eintritt** in `wait_for_ride_end()` (`→ wait`), nicht erst
+  beim Verlassen: sonst wurde es vom sofort folgenden Aussteige-Event aus dem
+  5-Ereignis-Fenster gedrängt und war im 4-Hz-Ticker nie sichtbar.
+- Label `LAST 5` und `#NNNN`-Nummerierung unverändert.
+
+### Unverändert
+
+Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler, `[METRIC]`-Format,
+`logs/station.log`, alle anderen Dashboard-Bereiche.
 

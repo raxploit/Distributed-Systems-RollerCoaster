@@ -41,6 +41,11 @@ public class StationHandler implements Station.Iface {
     private long eventSeq;
     private static final int RECENT_EVENTS = 5;
 
+    // Nur fuer die Anzeige: notifyAll()-Aktivitaet des Monitors (keine Sync-Logik)
+    private long signalCount;
+    private String lastSignalMethod = "";
+    private long lastSignalNanos;
+
     // Zaehler fuer die Metrik-Ausgabe (keine Aenderung an der Thrift-IDL noetig)
     private long boardings;
     private long departures;
@@ -58,7 +63,7 @@ public class StationHandler implements Station.Iface {
     public synchronized int i_am_boarding(int passengerId) throws TException {
         waitingPassengers.addLast(passengerId);
         log.station("P" + passengerId + " wartet  | Queue: " + waitingPassengers);
-        recordEvent("P" + passengerId + " joined queue");
+        recordEvent("i_am_boarding(P" + passengerId + ") → wait");
 
         // Warten, bis: ein Wagen beladen wird, er noch Platz hat UND ich vorne in der Schlange bin
         while (!(isLoadingWagonFree() && Integer.valueOf(passengerId).equals(waitingPassengers.peekFirst()))) {
@@ -71,15 +76,17 @@ public class StationHandler implements Station.Iface {
         passengerWagon.put(passengerId, wagonId);
         log.station("P" + passengerId + " steigt in W" + wagonId + " ein " + seats.get(wagonId));
         boardings++;
-        recordEvent("P" + passengerId + " boarded W" + wagonId + " (" + seats.get(wagonId).size() + "/" + capacity + ")");
+        recordEvent("i_am_boarding(P" + passengerId + ") → W" + wagonId
+                + " [" + seats.get(wagonId).size() + "/" + capacity + "]");
 
-        notifyAll(); // naechster Passagier oder volle-Wagen-Bedingung pruefen
+        signal("i_am_boarding"); // naechster Passagier oder volle-Wagen-Bedingung pruefen
         return wagonId;
     }
 
     @Override
     public synchronized void wait_for_ride_end(int passengerId) throws TException {
         int wagonId = passengerWagon.get(passengerId);
+        recordEvent("wait_for_ride_end(P" + passengerId + ") → wait");
         while (!rideOver.contains(wagonId)) {
             waitUninterruptibly();
         }
@@ -91,8 +98,8 @@ public class StationHandler implements Station.Iface {
         seats.get(wagonId).remove(Integer.valueOf(passengerId));
         int rides = rideCount.merge(passengerId, 1, Integer::sum);
         log.station("P" + passengerId + " steigt aus W" + wagonId + " aus | Fahrten: " + rideCount);
-        recordEvent("P" + passengerId + " left W" + wagonId + " (ride " + rides + ")");
-        notifyAll(); // Wagen wartet evtl. darauf, leer zu sein
+        recordEvent("i_am_disembarking(P" + passengerId + ") ← W" + wagonId + " [ride " + rides + "]");
+        signal("i_am_disembarking"); // Wagen wartet evtl. darauf, leer zu sein
     }
 
     // ---------------- Wagen ----------------
@@ -112,8 +119,8 @@ public class StationHandler implements Station.Iface {
             platformQueue.addLast(wagonId); // normaler Betrieb / Wagen-Neustart
         }
         log.station("W" + wagonId + " am Bahnsteig | Wagen-Queue: " + platformQueue);
-        recordEvent("W" + wagonId + " arrived");
-        notifyAll(); // wartende Passagiere koennen evtl. einsteigen
+        recordEvent("arrive(W" + wagonId + ") → queue");
+        signal("arrive"); // wartende Passagiere koennen evtl. einsteigen
 
         // Warten, bis ich vorne am Bahnsteig bin UND voll
         while (!(Integer.valueOf(wagonId).equals(platformQueue.peekFirst()) && seats.get(wagonId).size() == capacity)) {
@@ -128,8 +135,8 @@ public class StationHandler implements Station.Iface {
         rideStartedNanos.put(wagonId, System.nanoTime()); // Fortschritt fuer das Dashboard
         log.station("W" + wagonId + " faehrt ab mit " + seats.get(wagonId) + " | Strecke: " + track);
         departures++;
-        recordEvent("W" + wagonId + " departed " + seats.get(wagonId));
-        notifyAll(); // naechster Wagen darf jetzt beladen werden
+        recordEvent("departure(W" + wagonId + ") → " + seats.get(wagonId));
+        signal("departure"); // naechster Wagen darf jetzt beladen werden
     }
 
     @Override
@@ -141,8 +148,8 @@ public class StationHandler implements Station.Iface {
 
         rideOver.add(wagonId);
         log.station("W" + wagonId + " zurueck, Passagiere steigen aus");
-        recordEvent("W" + wagonId + " returned");
-        notifyAll(); // weckt die Passagiere in wait_for_ride_end
+        recordEvent("ride_finished(W" + wagonId + ") → unloading");
+        signal("ride_finished"); // weckt die Passagiere in wait_for_ride_end
 
         // Warten, bis alle c Passagiere ausgestiegen sind
         while (!seats.get(wagonId).isEmpty()) {
@@ -154,8 +161,8 @@ public class StationHandler implements Station.Iface {
         rideStartedNanos.remove(wagonId);
         completedRides++;
         log.station("W" + wagonId + " leer");
-        recordEvent("W" + wagonId + " empty");
-        notifyAll(); // naechster Wagen auf der Strecke darf entladen
+        recordEvent("ride_finished(W" + wagonId + ") → empty");
+        signal("ride_finished"); // naechster Wagen auf der Strecke darf entladen
     }
 
     // ---------------- Metriken ----------------
@@ -179,7 +186,10 @@ public class StationHandler implements Station.Iface {
                          List<String> recentEvents,
                          long boardings,
                          long departures,
-                         long completedRides) {}
+                         long completedRides,
+                          long signalCount,
+                          String lastSignalMethod,
+                          long lastSignalNanos) {}
 
     public synchronized Status snapshot() {
         Map<Integer, List<Integer>> seatsCopy = new LinkedHashMap<>();
@@ -193,7 +203,16 @@ public class StationHandler implements Station.Iface {
                 Collections.unmodifiableMap(new TreeMap<>(rideCount)),
                 Map.copyOf(rideStartedNanos),
                 List.copyOf(recentEvents),
-                boardings, departures, completedRides);
+                boardings, departures, completedRides,
+                signalCount, lastSignalMethod, lastSignalNanos);
+    }
+
+    /** Ein Signal an alle Wartenden – mit Zaehler und Zeitstempel fuer das Dashboard. */
+    private void signal(String method) {
+        signalCount++;
+        lastSignalMethod = method;
+        lastSignalNanos = System.nanoTime();
+        notifyAll();
     }
 
     private void recordEvent(String shortText) {
