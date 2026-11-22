@@ -331,6 +331,10 @@ Abschnitt 13 weiter angepasst.
   `--width=N` überschreibt weiterhin alles.
 - Alternativer Screen (`\033[?1049h` / `\033[?1049l`): nach Strg+C ist der alte
   Terminalinhalt erhalten. `reset()` stellt außerdem Farben und Cursor wieder her.
+- TTY-Erkennung nicht mehr über `System.console()`, sondern über `test -t 1`
+  (stdout). Ursache: `make laptop` startet die Station mit `&`; dadurch ist stdin
+  `/dev/null` und `System.console()` null, obwohl stdout weiterhin das Terminal
+  ist. Das war die Ursache für „kein Dashboard“ trotz laufender Wagen.
 - Ohne TTY unverändert: keine ANSI-Codes, `[Station]`/`[METRIC]` auf stdout.
 
 ### Makefile

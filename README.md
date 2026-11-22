@@ -105,8 +105,10 @@ ist. Der Titel ist einfach `ROLLER COASTER`. Es zeigt `CONFIG` (mit `[PORT …]`
 (`SERVER`/`WAGON`/`PASSENGERS` mit Anzahl der gesehenen Knoten), `WAITING`,
 `PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX`, `LAST 5` und `HINT`.
 
-Die Breite wird automatisch aus `COLUMNS` bzw. `stty size` übernommen (Fallback
-96 Spalten); `--width=N` überschreibt sie. Farben gibt es automatisch; aus mit
+Die TTY-Erkennung prüft stdout (`test -t 1`), daher erscheint das Dashboard auch
+dann, wenn die Station vom Makefile im Hintergrund gestartet wird. Die Breite
+wird automatisch aus `COLUMNS` bzw. `stty size` übernommen (Fallback 96 Spalten);
+`--width=N` überschreibt sie. Farben gibt es automatisch; aus mit
 `NO_COLOR=1` oder `--no-color`. Das Dashboard nutzt den alternativen Screen:
 Nach Strg+C steht der alte Terminalinhalt wieder da.
 

@@ -45,7 +45,7 @@ public class StationServer {
         }
 
         // Ohne echtes Terminal (z. B. Redirect in eine Datei) wären Escape-Codes unsinnig.
-        boolean tty = System.console() != null && !"dumb".equals(System.getenv("TERM"));
+        boolean tty = !"dumb".equals(System.getenv("TERM")) && isStdoutTty();
         boolean interactive = dashboard && tty;
         boolean noColorEnv = System.getenv("NO_COLOR") != null;
         boolean colors = colorFlag && !noColorEnv;
@@ -85,6 +85,19 @@ public class StationServer {
         }
 
         server.serve();
+    }
+
+    /**
+     * Das Dashboard schreibt nur auf stdout. Ein per '&' gestarteter Prozess hat
+     * stdin=/dev/null (System.console() == null), aber weiterhin ein TTY auf fd 1.
+     */
+    private static boolean isStdoutTty() {
+        try {
+            return new ProcessBuilder("/bin/sh", "-c", "test -t 1")
+                    .inheritIO().start().waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** Terminalbreite aus COLUMNS oder stty; Fallback 96. --width=N überschreibt alles. */
