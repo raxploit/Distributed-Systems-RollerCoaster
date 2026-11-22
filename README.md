@@ -106,11 +106,12 @@ Das Dashboard erscheint nur auf dem Laptop, weil dort ein echtes TTY vorhanden
 ist. Der Titel ist einfach `ROLLER COASTER`. Es zeigt `CONFIG` (mit `[PORT …]`,
 `[CAPACITY …]`, `[WAGONS …]`, `[REFRESH …]`), `LOG` (beide Log-Pfade:
 `STATION …` und `WAGONS …`), `UPTIME`, `LINK`
-(`SERVER`/`WAGON`/`PASSENGERS` mit Anzahl der gesehenen Knoten), `COORD`,
-`NODES`, `BLOCKED`, `WAITING`, `PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX`,
-`LAST 5` und `HINT` (nur noch `Ctrl+C to exit`).
+(`SERVER`/`WAGON`/`PASSENGERS` mit Anzahl der gesehenen Knoten), `WAITING`,
+`PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX` und `LAST 5`. Der frühere
+`HINT`-Block ist entfernt.
 
-Die drei neuen Zeilen machen die verteilten Mechanismen sichtbar:
+`COORD`, `NODES` und `BLOCKED` bilden einen **eigenen Kasten** zwischen
+`RIDES/PAX` und `LAST 5` und machen die verteilten Mechanismen sichtbar:
 
 - `COORD` zeigt den zentralen Coordinator mit seinem einen `synchronized`-
   Monitor, die Anzahl der `notifyAll()`-Signale und die zuletzt signalisierende

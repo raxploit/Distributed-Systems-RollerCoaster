@@ -92,9 +92,6 @@ public class ConsoleView implements AutoCloseable {
                 + "   WAGONS " + col(CYAN, shortLog(wagonLogPath)));
         row(b, label("UPTIME") + col(MAGENTA, elapsed()));
         row(b, label("LINK") + link(s.seats().size(), passengers.size()));
-        row(b, label("COORD") + coord(s));
-        row(b, label("NODES") + nodes(s.seats().keySet(), s.rideCount().keySet()));
-        row(b, label("BLOCKED") + blocked(s));
         middle(b);
         row(b, label("WAITING") + ids(s.waiting()));
         row(b, label("PLATFORM") + wagons(s.platform(), s.seats(), s.capacity()));
@@ -104,10 +101,12 @@ public class ConsoleView implements AutoCloseable {
         middle(b);
         fairness(b, s.rideCount());
         middle(b);
+        row(b, label("COORD") + coord(s));
+        row(b, label("NODES") + nodes(s.seats().keySet(), s.rideCount().keySet()));
+        row(b, label("BLOCKED") + blocked(s));
+        middle(b);
         row(b, label("LAST " + EVENTS));
         events(b, s.recentEvents());
-        middle(b);
-        row(b, label("HINT") + col(GRAY, "Ctrl+C to exit"));
         bottom(b);
 
         System.out.print((firstFrame ? "\033[2J" : "") + "\033[H" + b + "\033[J");

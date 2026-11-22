@@ -454,9 +454,13 @@ alle anderen Dashboard-Bereiche.
   `LOG  STATION logs/station.log   WAGONS logs/wagons.log`.
 - Der Wagen-Log-Pfad wird aus dem Stations-Log-Pfad abgeleitet (gleiches
   Verzeichnis, Datei `wagons.log`) – `--log=…` wirkt also auf beide.
-- `HINT` enthält nur noch `Ctrl+C to exit`; die doppelten Pfadangaben sind weg.
+- `HINT` enthielt zunächst nur noch `Ctrl+C to exit`; die doppelten Pfadangaben
+  waren weg. In Abschnitt 20 wurde der Block vollständig entfernt.
 
-## 19. Update 2026-11-22: verteilte Systeme im Dashboard (aktuell)
+## 19. Update 2026-11-22: verteilte Systeme im Dashboard
+
+`COORD`, `NODES` und `BLOCKED` stehen in einem eigenen, durch Trennlinien
+eingefassten Kasten zwischen `RIDES/PAX` und `LAST 5` – nicht mehr im Header.
 
 ### COORD – der Coordinator lebt
 
@@ -499,4 +503,10 @@ alle anderen Dashboard-Bereiche.
 
 Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler, `[METRIC]`-Format,
 `logs/station.log`, alle anderen Dashboard-Bereiche.
+
+## 20. Update 2026-11-22: HINT entfernt (aktuell)
+
+- Der letzte Block mit `HINT` und seiner Trennlinie ist weg. `LAST 5` ist jetzt
+  der letzte Bereich; `bottom()` schließt direkt an die Events an.
+- Unverändert: alle Inhalte, Farben, feste Breite von 120 Spalten.
 
