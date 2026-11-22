@@ -441,7 +441,9 @@ alle anderen Dashboard-Bereiche.
 
 - Die automatische Breitenerkennung (`COLUMNS`, `stty size < /dev/tty`) wurde
   entfernt. Die `detectWidth()`-Methode und die dafür nötigen Imports sind weg.
-- Default ist jetzt eine **feste Breite von 100 Spalten**, passend zum Layout.
+- Default ist jetzt eine **feste Breite von 120 Spalten**. Bei 100 Spalten wurde
+  der vierte Wagen auf `TRACK` abgeschnitten (`[W4 …`); die Zeile benötigt 118
+  Zeichen (114 Inhalt + 4 Rahmen). 120 lässt 2 Zeichen Puffer.
   Ist das Terminal schmaler, werden Zeilen abgeschnitten – das ist gewollt.
 - `--width=N` bleibt als manueller Override erhalten.
 - Unverändert: TTY-Erkennung über `test -t 1`, Farben, alle Inhalte.

@@ -12,7 +12,7 @@ public class StationServer {
     public static void main(String[] args) throws Exception {
         int port = 9090;
         int capacity = 4;
-        int width = 100; // feste Dashboard-Breite; zu schmale Fenster schneiden ab
+        int width = 120; // feste Dashboard-Breite: 4 Wagen auf TRACK passen vollständig hin; zu schmale Fenster schneiden ab
         long rideMs = 20000;
         int expectedWagons = 0; // 0 = altes Verhalten (keine sortierte Startphase)
         Path logPath = Path.of("logs", "station.log");
