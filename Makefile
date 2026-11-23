@@ -16,7 +16,7 @@ laptop: build
 	@set -e; \
 	java -Dstdout.encoding=UTF-8 -Dfile.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer \
 		--capacity=$(CAPACITY) --port=$(STATION_PORT) --ride-ms=$(RIDE_MS) --wagons=$(WAGONS) \
-		--laptop-host=$(STATION_HOST) --vm-host=$(VM_HOST) --log=logs/station.log & STATION_PID=$$!; \
+		--log=logs/station.log & STATION_PID=$$!; \
 	sleep 0.5; \
 	PYTHONPATH=gen-py .venv/bin/python -u src/python/wagon_runner.py \
 		--host=127.0.0.1 --port=$(STATION_PORT) --count=$(WAGONS) \

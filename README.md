@@ -45,7 +45,6 @@ cp .env.example .env
 | Variable | Bedeutung | Default |
 |---|---|---|
 | `STATION_HOST` | Tailnet-IP des **Laptops** (Ziel der Passagiere) | – |
-| `VM_HOST` | Tailnet-IP der **VM**, nur für die `NODES`-Anzeige auf dem Laptop | leer → `[? VM]` |
 | `STATION_PORT` | Port der Station | `9090` |
 | `CAPACITY` | Sitze pro Wagen `c` | `4` |
 | `WAGONS` | Anzahl Wagen auf dem Laptop; bestimmt auch die sortierte Startreihenfolge `1..n` | `4` |
@@ -107,22 +106,23 @@ ist. Der Titel ist einfach `ROLLER COASTER`. Es zeigt `CONFIG` (mit `[PORT …]`
 `[CAPACITY …]`, `[WAGONS …]`, `[REFRESH …]`), `LOG` (beide Log-Pfade:
 `STATION …` und `WAGONS …`), `UPTIME`, `LINK`
 (`SERVER`/`WAGON`/`PASSENGERS` mit Anzahl der gesehenen Knoten), `WAITING`,
-`PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX` und `LAST 5`. Der frühere
-`HINT`-Block ist entfernt.
+`PLATFORM`, `TRACK`, `COUNTERS`, `RIDES/PAX`, `BLOCKED`, `SIGNALS` und
+`LAST 5`. Der frühere `HINT`-Block ist entfernt.
 
-`COORD`, `NODES` und `BLOCKED` bilden einen **eigenen Kasten** zwischen
-`RIDES/PAX` und `LAST 5` und machen die verteilten Mechanismen sichtbar:
+`BLOCKED` und `SIGNALS` bilden einen **eigenen Kasten** zwischen `RIDES/PAX`
+und `LAST 5` und machen die verteilten Mechanismen sichtbar:
 
-- `COORD` zeigt den zentralen Coordinator mit seinem einen `synchronized`-
-  Monitor, die Anzahl der `notifyAll()`-Signale und die zuletzt signalisierende
-  RPC-Methode inklusive Alter – der Puls der Synchronisation.
-- `NODES` zeigt die physische Topologie mit Tailnet-IPs und Sprachmischung:
-  `[100.67.237.25 LAPTOP] Station (Java) + W1-W4 (Python) | [VM-IP VM] P1-P20 (Java)`.
-  Ohne `VM_HOST` erscheint `[? VM]`.
 - `BLOCKED` zeigt, welche Clients gerade im Monitor parken: `i_am_boarding`
   (wartende Passagiere), `arrive` (Wagen am Bahnsteig) und `wait_for_ride_end`
   (Passagiere in fahrenden Wagen). `ride_finished` fehlt bewusst – die Fahrt
   ist ein `sleep()` im Python-Client, kein Server-Block.
+- `SIGNALS` zeigt die Gesamtzahl aller `notifyAll()`-Aufrufe und die zuletzt
+  signalisierende RPC-Methode inklusive Alter, z. B.
+  `1,312 total · last: i_am_disembarking (0.2s)`. Vor dem ersten Signal steht
+  `last: -`. Das ist der Puls des einen `synchronized`-Monitors.
+
+Die Sprachmischung bleibt real erhalten (Station und Passagiere Java, Wagen
+Python), wird aber nicht mehr als eigene Zeile im Dashboard angezeigt.
 Auf `TRACK` ersetzt ein echter Fahrtfortschritt (`━━━━╸── 62 %`) den sonst immer
 vollen Sitzplatzbalken: Die Station merkt sich die Abfahrtszeit und rechnet sie
 gegen `RIDE_MS`. Die Passagiere kommen zufällig alle 1–5 s an, sodass sich
@@ -148,10 +148,9 @@ Für einen nativen Serverstart ohne Makefile:
 
 ```shell
 javac -cp "lib/*" -d build src/rollerCoaster/*.java gen-java/rollerCoaster/*.java
-java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090 --ride-ms=20000 --wagons=4 --laptop-host=100.67.237.25 --vm-host=100.x.y.z
+java -Dstdout.encoding=UTF-8 -cp "build:lib/*" rollerCoaster.StationServer --capacity=4 --port=9090 --ride-ms=20000 --wagons=4
 ```
 
-Weitere Server-Flags: `--log=pfad`, `--ride-ms=N`, `--wagons=N`, `--laptop-host=ip`,
-`--vm-host=ip`, `--width=N`, `--no-dashboard`, `--color` /
-`--no-color`. Ohne TTY oder mit `--no-dashboard` gehen die Log-Zeilen direkt
-auf stdout.
+Weitere Server-Flags: `--log=pfad`, `--ride-ms=N`, `--wagons=N`, `--width=N`,
+`--no-dashboard`, `--color` / `--no-color`. Ohne TTY oder mit
+`--no-dashboard` gehen die Log-Zeilen direkt auf stdout.

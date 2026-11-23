@@ -1,6 +1,6 @@
 # CHANGELOG – Logik, Metriken, Architektur
 
-Stand: 2026-11-22
+Stand: 2026-11-23
 
 Zweck dieser Datei: alles festhalten, was **nicht** Optik ist (also nicht Dashboard-Layout,
 Farben, Labels, Rahmen). Damit kann ich auf Anfrage schnell und korrekt zusammenfassen,
@@ -504,9 +504,29 @@ eingefassten Kasten zwischen `RIDES/PAX` und `LAST 5` – nicht mehr im Header.
 Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler, `[METRIC]`-Format,
 `logs/station.log`, alle anderen Dashboard-Bereiche.
 
-## 20. Update 2026-11-22: HINT entfernt (aktuell)
+## 20. Update 2026-11-22: HINT entfernt
 
 - Der letzte Block mit `HINT` und seiner Trennlinie ist weg. `LAST 5` ist jetzt
   der letzte Bereich; `bottom()` schließt direkt an die Events an.
 - Unverändert: alle Inhalte, Farben, feste Breite von 120 Spalten.
+
+## 21. Update 2026-11-23: Sync-Kasten verdichtet, Host-Flags entfernt (aktuell)
+
+- Der Kasten zwischen `RIDES/PAX` und `LAST 5` hat jetzt nur noch zwei Zeilen:
+  `BLOCKED` mit den wartenden Clients und `SIGNALS` mit der Gesamtzahl der
+  `notifyAll()`-Aufrufe sowie dem letzten signalisierenden RPC inklusive Alter.
+- Die Signal-Buchhaltung im `StationHandler` (`signalCount`,
+  `lastSignalMethod`, `lastSignalNanos`, Helper `signal(method)`) bleibt
+  unverändert und wird unverändert an allen sechs Signal-Stellen gepflegt.
+  Vor dem ersten Signal weiterhin `last: -`.
+- `COORD` und `NODES` sind aus `ConsoleView` entfernt – inklusive der Helper
+  `coord()`, `nodes()`, `host()`, `idRange()` und der Felder `laptopHost` /
+  `vmHost`.
+- Damit entfallen auch die Server-Flags `--laptop-host` und `--vm-host` sowie
+  `VM_HOST` aus `.env` und `.env.example`. `STATION_HOST` bleibt zwingend,
+  weil die VM darüber die Station erreicht (`make vm`).
+- Abschnitt 19 beschreibt den damaligen Stand; Abschnitt 21 ist aktuell.
+- Unverändert: Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler,
+  `[METRIC]`-Format, Logs, `LAST 5`, feste Breite von 120 Spalten und die
+  Sprachmischung Java/Python selbst (nur die separate `NODES`-Anzeige entfällt).
 

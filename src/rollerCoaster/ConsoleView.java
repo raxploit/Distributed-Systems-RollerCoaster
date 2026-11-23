@@ -14,8 +14,9 @@ import java.util.regex.Pattern;
 
 /**
  * Sole writer to stdout in interactive mode: live dashboard with waiting queue,
- * platform, track, seats, counters, fairness and the last five events. Colors
- * are only used in a real terminal and when they are not disabled.
+ * platform, track, seats, counters, fairness, blocked calls, signal activity and
+ * the last five events. Colors are only used in a real terminal and when they
+ * are not disabled.
  */
 public class ConsoleView implements AutoCloseable {
 
@@ -44,14 +45,11 @@ public class ConsoleView implements AutoCloseable {
     private final String logPath;
     private final String wagonLogPath;
     private final long rideMs;
-    private final String laptopHost;
-    private final String vmHost;
     private final long startedNanos = System.nanoTime();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private boolean firstFrame = true;
 
-    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath, long rideMs,
-                       String laptopHost, String vmHost) {
+    public ConsoleView(int port, int width, boolean interactive, boolean colors, String logPath, long rideMs) {
         this.port = port;
         this.width = Math.max(60, width);
         this.interactive = interactive;
@@ -59,8 +57,6 @@ public class ConsoleView implements AutoCloseable {
         this.logPath = logPath;
         this.wagonLogPath = wagonLogSibling(logPath);
         this.rideMs = rideMs;
-        this.laptopHost = laptopHost;
-        this.vmHost = vmHost;
         if (interactive) {
             System.out.print("\033[?1049h"); // alternativer Screen: alter Terminalinhalt bleibt erhalten
             System.out.print("\033[?25l");   // Cursor verstecken
@@ -101,9 +97,8 @@ public class ConsoleView implements AutoCloseable {
         middle(b);
         fairness(b, s.rideCount());
         middle(b);
-        row(b, label("COORD") + coord(s));
-        row(b, label("NODES") + nodes(s.seats().keySet(), s.rideCount().keySet()));
         row(b, label("BLOCKED") + blocked(s));
+        row(b, label("SIGNALS") + signals(s));
         middle(b);
         row(b, label("LAST " + EVENTS));
         events(b, s.recentEvents());
@@ -168,8 +163,8 @@ public class ConsoleView implements AutoCloseable {
         return col(BOLD_GREEN, "●");
     }
 
-    /** Coordinator: notifyAll() ist der Herzschlag des einen synchronized-Monitors. */
-    private String coord(StationHandler.Status s) {
+    /** notifyAll() ist der Herzschlag des einen synchronized-Monitors. */
+    private String signals(StationHandler.Status s) {
         String count = col(MAGENTA, String.format(Locale.ROOT, "%,d", s.signalCount()));
         String last;
         if (s.lastSignalNanos() == 0 || s.lastSignalMethod().isEmpty()) {
@@ -179,44 +174,7 @@ public class ConsoleView implements AutoCloseable {
             last = col(CYAN, s.lastSignalMethod())
                     + " " + col(GRAY, String.format(Locale.ROOT, "(%.1fs)", ageMs / 1000.0));
         }
-        return "StationServer [Java] · 1 monitor · wait()/notifyAll() · signals " + count
-                + " · last: " + last;
-    }
-
-    /** Physische Verteilung und Sprachmischung; leere IPs erscheinen als "?". */
-    private String nodes(Set<Integer> wagonIds, Set<Integer> passengerIds) {
-        return "[" + host(laptopHost, "LAPTOP") + "] Station (Java) + " + idRange(wagonIds, "W") + " (Python)"
-                + "   |   [" + host(vmHost, "VM") + "] " + idRange(passengerIds, "P") + " (Java)";
-    }
-
-    private String host(String ip, String role) {
-        return (ip == null || ip.isBlank() ? "?" : ip) + " " + role;
-    }
-
-    /** W1-W4 bei lueckenfreien IDs, sonst eine kompakte Liste. */
-    private String idRange(Set<Integer> ids, String prefix) {
-        if (ids.isEmpty()) {
-            return "-";
-        }
-        List<Integer> sorted = new ArrayList<>(ids);
-        Collections.sort(sorted);
-        int first = sorted.get(0);
-        int last = sorted.get(sorted.size() - 1);
-        if (sorted.size() == 1) {
-            return prefix + first;
-        }
-        if (last - first == sorted.size() - 1) {
-            return prefix + first + "-" + prefix + last;
-        }
-        if (sorted.size() > 6) {
-            // Lückenhafte IDs kompakt als Bereich + Anzahl (sonst sprengt die Zeile das Layout)
-            return prefix + first + "-" + prefix + last + " (" + sorted.size() + ")";
-        }
-        List<String> parts = new ArrayList<>();
-        for (int id : sorted) {
-            parts.add(prefix + id);
-        }
-        return String.join(",", parts);
+        return count + " total · last: " + last;
     }
 
     /** Clients, die gerade im Monitor des Coordinators parken (aus dem Snapshot ableitbar). */
