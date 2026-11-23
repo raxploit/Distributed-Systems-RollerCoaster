@@ -21,7 +21,8 @@ laptop: build
 	PYTHONPATH=gen-py .venv/bin/python -u src/python/wagon_runner.py \
 		--host=127.0.0.1 --port=$(STATION_PORT) --count=$(WAGONS) \
 		--ride-ms=$(RIDE_MS) --boarding-ms=$(BOARDING_MS) \
-		--id-offset=$(ID_OFFSET) >> logs/wagons.log 2>&1 & WAGON_PID=$$!; \
+		--id-offset=$(ID_OFFSET) --start-stagger-ms=$(WAGON_STAGGER_MS) \
+		>> logs/wagons.log 2>&1 & WAGON_PID=$$!; \
 	trap 'kill $$STATION_PID $$WAGON_PID 2>/dev/null || true; wait 2>/dev/null || true' INT TERM EXIT; \
 	wait $$STATION_PID $$WAGON_PID
 

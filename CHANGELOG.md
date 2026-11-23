@@ -510,7 +510,7 @@ Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler, `[METRIC]`-Format,
   der letzte Bereich; `bottom()` schließt direkt an die Events an.
 - Unverändert: alle Inhalte, Farben, feste Breite von 120 Spalten.
 
-## 21. Update 2026-11-23: Sync-Kasten verdichtet, Host-Flags entfernt (aktuell)
+## 21. Update 2026-11-23: Sync-Kasten verdichtet, Host-Flags entfernt
 
 - Der Kasten zwischen `RIDES/PAX` und `LAST 5` hat jetzt nur noch zwei Zeilen:
   `BLOCKED` mit den wartenden Clients und `SIGNALS` mit der Gesamtzahl der
@@ -529,4 +529,20 @@ Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler, `[METRIC]`-Format,
 - Unverändert: Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler,
   `[METRIC]`-Format, Logs, `LAST 5`, feste Breite von 120 Spalten und die
   Sprachmischung Java/Python selbst (nur die separate `NODES`-Anzeige entfällt).
+
+## 22. Update 2026-11-23: geordnete Start-RPCs (aktuell)
+
+- `wagon_runner.py` hat den neuen Parameter `--start-stagger-ms` (Default 400).
+  Zwischen dem Start zweier Wagen liegt eine Pause, damit die ersten
+  `arrive(W…)`-Aufrufe wirklich in ID-Reihenfolge bei der Station eintreffen
+  und damit auch so in `LAST 5` stehen.
+- Konfigurierbar über `WAGON_STAGGER_MS` in `.env` / `.env.example`, durchgereicht
+  vom Makefile. Bei vier Wagen kostet das ~1,2 s zusätzliche Startzeit.
+- Die Station musste nicht geändert werden: Ihre sortierte Startphase in
+  `platformQueue` sorgt weiterhin für die geordnete Abfahrt; vorher war nur der
+  RPC-Eintritt durch das gleichzeitige Starten der Prozesse zufällig.
+- Danach gilt wie zuvor normales FIFO und volle Nebenläufigkeit; ein später
+  neu gestarteter Wagen wird nicht erneut gestaffelt.
+- Unverändert: Thrift-IDL, generierter Code, Wait/Notify-Verhalten, Zähler,
+  `[METRIC]`-Format, Logs und alle Dashboard-Bereiche.
 

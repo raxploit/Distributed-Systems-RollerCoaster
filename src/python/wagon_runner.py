@@ -66,6 +66,7 @@ def main():
     parser.add_argument("--ride-ms", type=int, default=3000)
     parser.add_argument("--boarding-ms", type=int, default=0)
     parser.add_argument("--id-offset", type=int, default=0)
+    parser.add_argument("--start-stagger-ms", type=int, default=400)
     args = parser.parse_args()
 
     signal.signal(signal.SIGTERM, on_signal)
@@ -82,6 +83,10 @@ def main():
             str(args.ride_ms), str(args.boarding_ms),
         ]
         children.append({"id": wagon_id, "cmd": cmd, "proc": spawn(cmd)})
+        if i < args.count:
+            # Die Prozesse sonst gleichzeitig starten zu lassen, ergaebe zufaellige
+            # arrive()-RPCs; der Versatz macht die ersten Aufrufe W1, W2, W3, ...
+            time.sleep(max(0, args.start_stagger_ms) / 1000)
 
     try:
         while not stopping:

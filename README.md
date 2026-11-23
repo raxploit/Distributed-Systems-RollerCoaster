@@ -50,6 +50,7 @@ cp .env.example .env
 | `WAGONS` | Anzahl Wagen auf dem Laptop; bestimmt auch die sortierte Startreihenfolge `1..n` | `4` |
 | `RIDE_MS` | **feste** Fahrtdauer in ms (Grundlage des Fortschrittsbalkens) | `20000` |
 | `BOARDING_MS` | Türen-zu-Pause nach vollem Wagen in ms | `0` |
+| `WAGON_STAGGER_MS` | Pause zwischen dem Start zweier Wagen | `400` |
 | `PASSENGERS` | Anzahl Passagiere auf der VM | `20` |
 | `BOARD_MIN_MS` | minimale zufällige Ankunftszeit vor dem Einsteigen | `1000` |
 | `BOARD_MAX_MS` | maximale zufällige Ankunftszeit vor dem Einsteigen | `5000` |
@@ -70,6 +71,8 @@ make laptop
 - startet den `StationServer` im Vordergrund → **farbiges Live-Dashboard (4 Hz)**,
 - startet `wagon_runner.py` im Hintergrund; dessen Ausgabe geht nach
   `logs/wagons.log`, damit das Dashboard nicht gestört wird,
+- startet die Wagen mit `WAGON_STAGGER_MS` Pause, damit die ersten
+  `arrive()`-RPCs als `W1, W2, W3, …` im Trace erscheinen,
 - **Strg+C beendet Station und Wagen gemeinsam.**
 
 Wagen-Aktivität in einem zweiten Terminal:
@@ -128,7 +131,9 @@ vollen Sitzplatzbalken: Die Station merkt sich die Abfahrtszeit und rechnet sie
 gegen `RIDE_MS`. Die Passagiere kommen zufällig alle 1–5 s an, sodass sich
 `WAITING` und der Bahnsteig sichtbar füllen. Die Startreihenfolge der Wagen ist
 deterministisch `1, 2, 3, 4` – die Station sortiert die `platformQueue` in der
-Startphase, bis alle `WAGONS` gesehen wurden. Danach gilt wieder normales FIFO.
+Startphase, bis alle `WAGONS` gesehen wurden. Zusätzlich startet der Runner die
+Wagen gestaffelt, damit auch die ersten `arrive()`-RPCs in dieser Reihenfolge im
+Trace stehen. Danach gilt wieder normales FIFO und volle Nebenläufigkeit.
 `RIDES/PAX` zeigt oben `min`, `max` (jeweils mit Passagier-ID), `avg` und
 `spread = max - min`; darunter 5 fest ausgerichtete Kacheln pro Zeile im Format
 `[P1  29 ↑2]` – die Zahl ist die Fahrtenzahl, der Pfeil die gerundete Abweichung
